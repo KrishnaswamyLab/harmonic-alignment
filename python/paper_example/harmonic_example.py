@@ -1,6 +1,7 @@
 # we use this script in the paper to make the corruption experiment.
 from sklearn import datasets, decomposition, neighbors
-from scipy import stats
+from sklearn.utils.extmath import randomized_svd
+from scipy import stats, sparse
 import scipy
 import graphtools
 import numpy as np
@@ -13,8 +14,15 @@ import os
 
 def randPCA(X, n_components=None):
     pca_op = decomposition.PCA(n_components)
-    U, S, V = pca_op._fit(X)
-    return U, S, V.T
+    U, S, VT = pca_op._fit(X)
+    return U, S, VT.T
+
+
+def randSVD(X, n_components=None):
+    if n_components is None:
+        n_components = min(X.shape)
+    U, S, VT = randomized_svd(X, n_components)
+    return U, S, VT.T
 
 
 def knnclassifier(X, X_labels, Y, Y_labels, knn):
@@ -29,11 +37,14 @@ def diffusionCoordinates(X, decay, knn, n_pca):
     G = graphtools.Graph(X, knn=knn, decay=decay,
                          n_pca=n_pca, use_pygsp=True, thresh=0)
     n_samples = X.shape[0]
-    W = G.W.toarray() / np.outer(G.dw, G.dw)
+    W = G.W.tocoo()
+    # W / (DD^T)
+    W.data = W.data / (G.dw[W.row] * G.dw[W.col])
     # this is the anisotropic kernel
-    nsqrtD = np.diag(np.sum(W, 0) ** (-0.5))
-    L = np.eye(n_samples) - nsqrtD @ W @ nsqrtD
-    U, S, _ = randPCA(L)
+    nsqrtD = sparse.dia_matrix((np.array(np.sum(W, 0)) ** (-0.5), [0]),
+                               W.shape)
+    L = sparse.eye(n_samples) - nsqrtD @ W @ nsqrtD
+    U, S, _ = randSVD(L)
     # smallest to largest
     S_idx = np.argsort(S)
     U, S = U[:, S_idx], S[S_idx]
@@ -42,27 +53,27 @@ def diffusionCoordinates(X, decay, knn, n_pca):
     return U, S
 
 
+def itersine(x):
+    return np.sin(0.5 * np.pi * (np.cos(np.pi * x))**2) * \
+        ((x >= -0.5) & (x <= 0.5))
+
+
+def wavelet(loc, scale, overlap):
+    def wavelet_i(x):
+        return itersine(x / scale - loc / overlap + 1 / 2) * np.sqrt(2 / overlap)
+    return wavelet_i
+
+
 def build_wavelets(lmbda, n_filters, overlap):
     lambda_max = max(lmbda)
     # maximum laplacian eigenvalue
-    itersine = lambda x: np.sin(0.5 * np.pi * (np.cos(np.pi * x))**2) * \
-        ((x >= -0.5) & (x <= 0.5))
-    # this is the itersine function
     scale = lambda_max / (n_filters - overlap + 1) * (overlap)
-    filters = []
-    # we are gonna store some lambda functions in here
-    filter_means = np.zeros((n_filters, 1))
-    #  this is translating the wavelets along the interval 0, lmax.
     # response evaluation... this is the money
     lambda_filt = np.zeros((len(lmbda), n_filters))
     for i in range(n_filters):
-        filter_i = lambda x: itersine(
-            x / scale - (i + 1 - overlap / 2) / overlap) / np.sqrt(overlap) * np.sqrt(2)
+        filter_i = wavelet(loc=i + 1, scale=scale, overlap=overlap)
         lambda_filt[:, i] = filter_i(lmbda)
-        filter_means[i] = (i + 1 - overlap / 2) / overlap * scale
-        # i think this is the mean of each filter
-        filters.append(filter_i)
-    return lambda_filt, filters, filter_means
+    return lambda_filt
 
 
 def fetch_mnist(data_home=None):
@@ -78,6 +89,7 @@ def fetch_mnist(data_home=None):
             copyfileobj(mnist_url, matlab_file)
 
 
+np.random.seed(42)
 fetch_mnist()
 digits = datasets.fetch_mldata("MNIST original")
 labels = digits['target']
@@ -153,8 +165,8 @@ for p in range(n_percentages):
         for scale_idx in range(n_wavelets):
             n_filters = wavelet_scales[scale_idx]
             #  build wavelets
-            wavelet_1, _, _ = build_wavelets(S1, n_filters, 2)
-            wavelet_2, _, _ = build_wavelets(S2, n_filters, 2)
+            wavelet_1 = build_wavelets(S1, n_filters, 2)
+            wavelet_2 = build_wavelets(S2, n_filters, 2)
             # wavelet_1 is the filter evaluated over the eigenvalues.  So we
             # can pointwise multiply each wavelet_1 / 2 by the fourier
             # coefficients
@@ -199,3 +211,5 @@ for p in range(n_percentages):
                                       Z[n_samples:, :], X2_labels, 5)
             output[p, iter_idx, scale_idx, 0] = beforeprct
             output[p, iter_idx, scale_idx, 1] = afterprct
+
+print(output)
