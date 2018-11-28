@@ -1,3 +1,7 @@
+import numpy as np
+import warnings
+
+
 
 def _check_and_transpose(ref, inData):
     if ref not in inData.shape:

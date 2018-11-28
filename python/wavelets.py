@@ -1,6 +1,9 @@
 import numpy as np
-from scipy.sparse.linalg import eigs as eigs
 import warnings
+
+from . import utils
+
+from scipy.sparse.linalg import eigs as eigs
 from abc import ABCMeta, abstractmethod
 from functools import partial
 
