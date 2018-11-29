@@ -21,3 +21,11 @@ Installation
 harmonic-alignment is not yet available on `pip`. Install by running the following in a terminal::
 
     pip install --user git+https://github.com/KrishnaswamyLab/harmonic-alignment#subdirectory=python
+
+Usage
+-----
+
+You can use harmonic-alignment as follows::
+
+    import harmonicalignment
+    XY_aligned = harmonicalignment.align(X, Y, n_filters=4)
