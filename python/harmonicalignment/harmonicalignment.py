@@ -142,7 +142,8 @@ def align(X, Y, n_filters, overlap=2, t=1,
     E = np.vstack([np.hstack([phi_X, phi_X_transform]),
                    np.hstack([phi_Y_transform, phi_Y])])
     # weight by low passed eigenvalues
-    E_weighted = E @ np.diag(np.exp(-t * np.concatenate([lambda_X, lambda_Y])))
+    E_weighted = E.dot(
+        np.diag(np.exp(-t * np.concatenate([lambda_X, lambda_Y]))))
     # build the joint diffusion map
     tasklogger.log_start("diffusion coordinates")
     phi_transform, lambda_transform = math.diffusionCoordinates(
