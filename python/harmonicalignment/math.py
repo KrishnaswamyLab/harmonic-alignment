@@ -27,7 +27,7 @@ def randSVD(X, n_components=None, random_state=None):
 def orthogonalize(X, random_state=None):
     # why PCA and not SVD?
     U, _, V = randPCA(X, random_state=random_state)
-    X_orth = U @ V.T
+    X_orth = U.dot(V.T)
     return X_orth
 
 
