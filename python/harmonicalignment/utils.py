@@ -1,9 +1,14 @@
 import numpy as np
-import warnings
 
 
+def with_default(x, default):
+    if x is None:
+        return default
+    else:
+        return x
 
-def _check_and_transpose(ref, inData):
+
+def check_and_transpose(ref, inData):
     if ref not in inData.shape:
         return False
     else:
@@ -16,11 +21,9 @@ def _check_and_transpose(ref, inData):
             return np.swapaxes(inData, 0, pos)
 
 
-def _ispos(x):
+def is_positive(x):
     return x > 0
 
 
-def _inposrng(x, y):
-    return _ispos(x) and x < y
-
-
+def in_positive_range(x, y):
+    return is_positive(x) and x < y

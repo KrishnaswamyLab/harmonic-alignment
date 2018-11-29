@@ -20,7 +20,7 @@ class Wavelet(object):
 
     def __getitem__(self, j):
 
-        if _inposrng(j, self.numframes):
+        if utils.in_positive_range(j, self.numframes):
             return self.W[:, j * self.N:(j + 1) * self.N]
         else:
             raise KeyError("Attempted to slice a frame that does not exist.")
@@ -30,7 +30,8 @@ class Wavelet(object):
             x = np.linspace(0, 2, 1000)
         output = np.zeros((self.numframes, x.shape[0]))
         for j in range(self.numframes):
-            output[j, :] = self.evaluate_frame_spectral(j, x,transform_spectrum)
+            output[j, :] = self.evaluate_frame_spectral(
+                j, x, transform_spectrum)
         return output
 
     @abstractmethod
@@ -38,19 +39,19 @@ class Wavelet(object):
         raise NotImplementedError("Must override _fouriermapping")
 
     def evaluate_frame_spectral(self, j, x=None, transform_spectrum="normalized"):
-        if _inposrng(j, self.numframes):
+        if utils.in_positive_range(j, self.numframes):
             x = self._fouriermapping(x, transform_spectrum, "forward")
             return self._spectral_representation[j](x)
 
     def transform(self, x, j=None):
-        x = _check_and_transpose(self.N, x)
+        x = utils.check_and_transpose(self.N, x)
         if j is None:
             return np.matmul(self.W.T, x)
         else:
             return np.matmul(self[j].T, x)
 
     def power_density(self, x, p=2):
-        x = _check_and_transpose(self.N, x)
+        x = utils.check_and_transpose(self.N, x)
         x_density = np.zeros((self.numframes, x.shape[1]))
         for j in range(self.numframes):
             x_density[j, :] = np.sum(
@@ -59,6 +60,7 @@ class Wavelet(object):
 
 
 class DiffusionWavelets(Wavelet):
+
     def __init__(self, A, frames="tight", beta=None, transform_spectrum="normalized"):
         if isinstance(frames, str) and frames == "tight":
             if beta is None:
@@ -87,20 +89,21 @@ class DiffusionWavelets(Wavelet):
         W[0] = np.eye(N) - self.T
         curT = self.T
         self._spectral_representation = [lambda x: 1 - x]
-        genfunc = lambda x,j: -x**2**(-1 + (j)) * (-1 + x**2**(-1 + j))
+        genfunc = lambda x, j: -x**2**(-1 + (j)) * (-1 + x**2**(-1 + j))
         for j in range(self.numframes):
             nextT = np.matmul(curT, curT)
             W[j] = curT - nextT
             curT = nextT
             self._spectral_representation.append(
                 # this is the Fourier representation of the wavelets
-                #excuse me while i MATLAB in your python
+                # excuse me while i MATLAB in your python
                 partial(genfunc, j=float(j)))
 
         self.W = np.concatenate(W, axis=1)
 
     def _fouriermapping(self, x, domain, direction="forward"):
-        # this holds the mapping back to the Fourier domain - the eigenvalues of this operator are different.
+        # this holds the mapping back to the Fourier domain - the eigenvalues
+        # of this operator are different.
         if domain == 'normalized':
             if direction == "forward":
                 if np.min(x) < 0 and np.allclose(np.max(np.abs(x)), 1, atol=1e-5):
