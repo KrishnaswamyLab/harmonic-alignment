@@ -121,8 +121,8 @@ def test_digits():
         X2_rotate, decay_2, knn_2, pca_2, random_state=random_state)
     # ... sample 2
     #  get fourier coefficients
-    X1_fourier = U1.T @ X1
-    X2_rotate_fourier = U2.T @ X2_rotate
+    X1_fourier = U1.T.dot(X1)
+    X2_rotate_fourier = U2.T.dot(X2_rotate)
     #  build wavelets
     wavelet_1 = build_wavelets(S1, n_filters, 2)
     wavelet_2 = build_wavelets(S2, n_filters, 2)
@@ -139,8 +139,8 @@ def test_digits():
     blocks = np.zeros((wavelet_1_spectral.shape[0], n_filters,
                        wavelet_2_spectral.shape[0]))
     for i in range(n_filters):  # for each filter, build a correlation
-        blocks[:, i, :] = wavelet_1_spectral[:, i, :] @ \
-            wavelet_2_spectral[:, i, :].T
+        blocks[:, i, :] = wavelet_1_spectral[
+            :, i, :].dot(wavelet_2_spectral[:, i, :].T)
 
     #  construct transformation matrix
     transform = np.sum(blocks, axis=1)
@@ -153,19 +153,19 @@ def test_digits():
     transform_rank = len(St)
     Ut = Ut[:, :transform_rank]
     Vt = Vt[:, :transform_rank]
-    transform_orth = Ut @ Vt.T
+    transform_orth = Ut.dot(Vt.T)
     # the orthogonal transformation matrix
     #  compute transformed data
-    U1_transform = U1 @ transform_orth
+    U1_transform = U1.dot(transform_orth)
     # U1 in span(U2)
-    U2_transform = U2 @ transform_orth.T
+    U2_transform = U2.dot(transform_orth.T)
     #  U2 in span(U1)
     E = np.vstack([np.hstack([U1, U1_transform]),
                    np.hstack([U2_transform, U2])])
-    X = E @ np.diag(np.exp(-diffusion_t * np.concatenate([S1, S2])))
+    X = E.dot(np.diag(np.exp(-diffusion_t * np.concatenate([S1, S2]))))
     U_transform, S_transform = diffusionCoordinates(
         X, decay_transform, knn_transform,
         pca_transform, random_state=random_state)
-    Z2 = U_transform @ np.diag(np.exp(-S_transform))
+    Z2 = U_transform.dot(np.diag(np.exp(-S_transform)))
 
     np.testing.assert_allclose(Z, Z2, atol=1e-12, rtol=1e-12)
