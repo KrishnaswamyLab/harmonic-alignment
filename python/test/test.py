@@ -1,4 +1,4 @@
-# we use this script in the paper to make the corruption experiment.
+from __future__ import division
 from sklearn import datasets, decomposition
 from sklearn.utils.extmath import randomized_svd
 from scipy import stats, sparse
@@ -104,7 +104,7 @@ def test_digits():
     X1 = imgs[X1_idx, :]
     X2 = imgs[X2_idx, :]
     #  transform X2
-    X2_rotate = X2 @ random_rotation.T
+    X2_rotate = X2.dot(random_rotation.T)
 
     Z = harmonicalignment.align(
         X1, X2_rotate, n_filters, t=diffusion_t, overlap=2,

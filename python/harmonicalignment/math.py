@@ -1,3 +1,4 @@
+from __future__ import division
 import graphtools
 import numpy as np
 from scipy import sparse
@@ -45,7 +46,7 @@ def diffusionCoordinates(X, decay, knn, n_pca,
     # this is the anisotropic kernel
     nsqrtD = sparse.dia_matrix((np.array(np.sum(W, 0)) ** (-0.5), [0]),
                                W.shape)
-    L = sparse.eye(n_samples) - nsqrtD @ W @ nsqrtD
+    L = sparse.eye(n_samples) - nsqrtD.dot(W).dot(nsqrtD)
     U, S, _ = randSVD(L, random_state=random_state)
     # smallest to largest
     S_idx = np.argsort(S)

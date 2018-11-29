@@ -24,7 +24,7 @@ def build_itersine_wavelets(lmbda, n_filters, overlap):
 
 def evaluate_itersine_wavelets(X, phi_X, lambda_X, n_filters, overlap):
     # get fourier coefficients
-    X_fourier = phi_X.T @ X
+    X_fourier = phi_X.T.dot(X)
     # build wavelets
     wavelet_X = build_itersine_wavelets(lambda_X, n_filters, overlap=overlap)
     # wavelet_X is the filter evaluated over the eigenvalues.  So we
@@ -38,7 +38,7 @@ def evaluate_itersine_wavelets(X, phi_X, lambda_X, n_filters, overlap):
 def correlate_wavelets(wavelet_X, wavelet_Y, n_filters):
     blocks = np.zeros((wavelet_X.shape[0], n_filters, wavelet_Y.shape[0]))
     for i in range(n_filters):  # for each filter, build a correlation
-        blocks[:, i, :] = wavelet_X[:, i, :] @ wavelet_Y[:, i, :].T
+        blocks[:, i, :] = wavelet_X[:, i, :].dot(wavelet_Y[:, i, :].T)
     #  construct transformation matrix
     # sum wavelets up
     transform = np.sum(blocks, axis=1)
@@ -135,9 +135,9 @@ def align(X, Y, n_filters, overlap=2, t=1,
     #  compute transformed data
     tasklogger.log_start("transformed data")
     # phi_X in span(phi_Y)
-    phi_X_transform = phi_X @ transform
+    phi_X_transform = phi_X.dot(transform)
     #  phi_Y in span(phi_X)
-    phi_Y_transform = phi_Y @ transform.T
+    phi_Y_transform = phi_Y.dot(transform.T)
     # what is E?
     E = np.vstack([np.hstack([phi_X, phi_X_transform]),
                    np.hstack([phi_Y_transform, phi_Y])])
@@ -148,7 +148,7 @@ def align(X, Y, n_filters, overlap=2, t=1,
     phi_transform, lambda_transform = math.diffusionCoordinates(
         E_weighted, decay_XY, knn_XY, n_pca_XY,
         n_jobs=n_jobs, verbose=verbose, random_state=random_state)
-    XY_combined = phi_transform @ np.diag(np.exp(-lambda_transform))
+    XY_combined = phi_transform.dot(np.diag(np.exp(-lambda_transform)))
     tasklogger.log_complete("diffusion coordinates")
     tasklogger.log_complete("transformed data")
     tasklogger.log_complete("Harmonic Alignment")
