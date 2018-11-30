@@ -26,7 +26,7 @@ def randSVD(X, n_components=None, random_state=None):
 
 def orthogonalize(X, random_state=None):
     # why PCA and not SVD?
-    U, _, V = randPCA(X, random_state=random_state)
+    U, _, V = randSVD(X, random_state=random_state)
     X_orth = U.dot(V.T)
     return X_orth
 
@@ -34,23 +34,33 @@ def orthogonalize(X, random_state=None):
 def diffusionCoordinates(X, decay, knn, n_pca,
                          n_jobs=1, verbose=0, random_state=None):
     # diffusion maps with normalized Laplacian
-    # n_pca = 0 corresponds to NO pca
     G = graphtools.Graph(X, knn=knn, decay=decay,
-                         n_pca=n_pca, use_pygsp=True, thresh=0,
+                         n_pca=n_pca, use_pygsp=True, thresh=1e-4,
+                         anisotropy=1, lap_type='normalized',
                          n_jobs=n_jobs, verbose=verbose,
                          random_state=random_state)
-    n_samples = X.shape[0]
-    W = G.W.tocoo()
-    # W / (DD^T)
-    W.data = W.data / (G.dw[W.row] * G.dw[W.col])
-    # this is the anisotropic kernel
-    nsqrtD = sparse.dia_matrix((np.array(np.sum(W, 0)) ** (-0.5), [0]),
-                               W.shape)
-    L = sparse.eye(n_samples) - nsqrtD.dot(W).dot(nsqrtD)
-    U, S, _ = randSVD(L, random_state=random_state)
+    G.compute_fourier_basis()
+    phi, lmbda = G.U, G.e
     # smallest to largest
-    S_idx = np.argsort(S)
-    U, S = U[:, S_idx], S[S_idx]
+    lmbda_idx = np.argsort(lmbda)
+    phi, lmbda = phi[:, lmbda_idx], lmbda[lmbda_idx]
     #  trim trivial information
-    U, S = U[:, 1:], S[1:]
-    return U, S
+    phi, lmbda = phi[:, 1:], lmbda[1:]
+    return phi, lmbda
+
+
+def diffusionMap(phi, lmbda, t=1):
+    """Diffusion map from diffusion coordinates
+
+    Parameters
+    ----------
+    phi : array-like
+        Eigenvectors, sorted according to eigenvalues,
+        excluding the trivial eigenvector
+    lmbda : list-like
+        Eigenvalues sorted from smallest to largest,
+        excluding the trivial eigenvalue
+    t : int, optional (default: 1)
+        Diffusion power
+    """
+    return phi * np.exp(-t * lmbda)

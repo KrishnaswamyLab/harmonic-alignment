@@ -52,20 +52,24 @@ def build_wavelet_transform(wavelet_X, wavelet_Y, n_filters):
     return transform_orth
 
 
-def align(X, Y, n_filters, overlap=2, t=1,
-          knn=5, decay=20, n_pca=100,
-          n_jobs=1, verbose=False, random_state=None,
-          knn_X=None, knn_Y=None, knn_XY=None,
-          decay_X=None, decay_Y=None, decay_XY=None,
-          n_pca_X=None, n_pca_Y=None, n_pca_XY=0):
+def combine_eigenvectors(transform, phi_X, phi_Y, lambda_X, lambda_Y, t=1):
+    # phi_X in span(phi_Y)
+    phi_X_transform = phi_X.dot(transform)
+    #  phi_Y in span(phi_X)
+    phi_Y_transform = phi_Y.dot(transform.T)
+    # what is E?
+    E = np.vstack([np.hstack([phi_X, phi_X_transform]),
+                   np.hstack([phi_Y_transform, phi_Y])])
+    # weight by low passed eigenvalues
+    E_weighted = E * np.exp(-t * np.concatenate([lambda_X, lambda_Y]))
+    return E_weighted
+
+
+class HarmonicAlignment(object):
     """Harmonic alignment
 
     Parameters
     ----------
-    X : array-like, shape=[n_samples, n_features]
-        Input dataset
-    Y : array-like, shape=[m_samples, n_features]
-        Input dataset
     n_filters : int
         Number of wavelets
     overlap : float, optional (default: 2)
@@ -91,67 +95,83 @@ def align(X, Y, n_filters, overlap=2, t=1,
         If not None, overrides `decay`
     n_pca_{X,Y,XY} : int, optional (default: None)
         If not None, overrides `n_pca`
-
-    Returns
-    -------
-    XY : array-like, shape=[n_samples + m_samples, n_samples + m_samples - 1]
     """
-    tasklogger.set_level(verbose)
-    np.random.seed(random_state)
-    tasklogger.log_start("Harmonic Alignment")
-    # handle default values
-    knn_X = utils.with_default(knn_X, knn)
-    knn_Y = utils.with_default(knn_Y, knn)
-    knn_XY = utils.with_default(knn_XY, knn)
-    decay_X = utils.with_default(decay_X, decay)
-    decay_Y = utils.with_default(decay_Y, decay)
-    decay_XY = utils.with_default(decay_XY, decay)
-    n_pca_X = utils.with_default(n_pca_X, n_pca)
-    n_pca_Y = utils.with_default(n_pca_Y, n_pca)
-    n_pca_XY = utils.with_default(n_pca_XY, n_pca)
-    n_pca = None if n_pca == 0 else n_pca
-    n_pca_X = None if n_pca_X == 0 else n_pca_X
-    n_pca_Y = None if n_pca_Y == 0 else n_pca_Y
-    n_pca_XY = None if n_pca_XY == 0 else n_pca_XY
-    # normalized L with diffusion coordinates
-    tasklogger.log_start("diffusion coordinates")
-    phi_X, lambda_X = math.diffusionCoordinates(
-        X, decay_X, knn_X, n_pca_X,
-        n_jobs=n_jobs, verbose=verbose, random_state=random_state)
-    phi_Y, lambda_Y = math.diffusionCoordinates(
-        Y, decay_Y, knn_Y, n_pca_Y,
-        n_jobs=n_jobs, verbose=verbose, random_state=random_state)
-    tasklogger.log_complete("diffusion coordinates")
-    # evaluate wavelets over data in the spectral domain
-    tasklogger.log_start("wavelets")
-    wavelet_X = evaluate_itersine_wavelets(
-        X, phi_X, lambda_X, n_filters, overlap)
-    wavelet_Y = evaluate_itersine_wavelets(
-        Y, phi_Y, lambda_Y, n_filters, overlap)
-    tasklogger.log_complete("wavelets")
-    #  correlate the spectral domain wavelet coefficients.
-    tasklogger.log_start("orthogonal transformation")
-    transform = build_wavelet_transform(wavelet_X, wavelet_Y, n_filters)
-    tasklogger.log_complete("orthogonal transformation")
-    #  compute transformed data
-    tasklogger.log_start("transformed data")
-    # phi_X in span(phi_Y)
-    phi_X_transform = phi_X.dot(transform)
-    #  phi_Y in span(phi_X)
-    phi_Y_transform = phi_Y.dot(transform.T)
-    # what is E?
-    E = np.vstack([np.hstack([phi_X, phi_X_transform]),
-                   np.hstack([phi_Y_transform, phi_Y])])
-    # weight by low passed eigenvalues
-    E_weighted = E.dot(
-        np.diag(np.exp(-t * np.concatenate([lambda_X, lambda_Y]))))
-    # build the joint diffusion map
-    tasklogger.log_start("diffusion coordinates")
-    phi_transform, lambda_transform = math.diffusionCoordinates(
-        E_weighted, decay_XY, knn_XY, n_pca_XY,
-        n_jobs=n_jobs, verbose=verbose, random_state=random_state)
-    XY_combined = phi_transform.dot(np.diag(np.exp(-lambda_transform)))
-    tasklogger.log_complete("diffusion coordinates")
-    tasklogger.log_complete("transformed data")
-    tasklogger.log_complete("Harmonic Alignment")
-    return XY_combined
+
+    def __init__(self, n_filters, overlap=2, t=1,
+                 knn=5, decay=20, n_pca=100,
+                 n_jobs=1, verbose=False, random_state=None,
+                 knn_X=None, knn_Y=None, knn_XY=None,
+                 decay_X=None, decay_Y=None, decay_XY=None,
+                 n_pca_X=None, n_pca_Y=None, n_pca_XY=0):
+        self.n_filters = n_filters
+        self.overlap = overlap
+        self.t = t
+        self.n_jobs = n_jobs
+        self.random_state = random_state
+        self.verbose = verbose
+        self.knn_X = utils.with_default(knn_X, knn)
+        self.knn_Y = utils.with_default(knn_Y, knn)
+        self.knn_XY = utils.with_default(knn_XY, knn)
+        self.decay_X = utils.with_default(decay_X, decay)
+        self.decay_Y = utils.with_default(decay_Y, decay)
+        self.decay_XY = utils.with_default(decay_XY, decay)
+        self.n_pca_X = utils.with_default(n_pca_X, n_pca)
+        self.n_pca_Y = utils.with_default(n_pca_Y, n_pca)
+        self.n_pca_XY = utils.with_default(n_pca_XY, n_pca)
+        tasklogger.set_level(self.verbose)
+        super().__init__()
+
+    def align(self, X, Y):
+        """Harmonic alignment
+
+        Parameters
+        ----------
+        X : array-like, shape=[n_samples, n_features]
+            Input dataset
+        Y : array-like, shape=[m_samples, n_features]
+            Input dataset
+
+        Returns
+        -------
+        XY_aligned : array-like, shape=[n_samples + m_samples, n_samples + m_samples - 1]
+        """
+        tasklogger.log_start("Harmonic Alignment")
+        np.random.seed(self.random_state)
+        # normalized L with diffusion coordinates
+        tasklogger.log_start("diffusion coordinates")
+        phi_X, lambda_X = math.diffusionCoordinates(
+            X, self.decay_X, self.knn_X, self.n_pca_X,
+            n_jobs=self.n_jobs, verbose=self.verbose,
+            random_state=self.random_state)
+        phi_Y, lambda_Y = math.diffusionCoordinates(
+            Y, self.decay_Y, self.knn_Y, self.n_pca_Y,
+            n_jobs=self.n_jobs, verbose=self.verbose,
+            random_state=self.random_state)
+        tasklogger.log_complete("diffusion coordinates")
+        # evaluate wavelets over data in the spectral domain
+        tasklogger.log_start("wavelets")
+        wavelet_X = evaluate_itersine_wavelets(
+            X, phi_X, lambda_X, self.n_filters, self.overlap)
+        wavelet_Y = evaluate_itersine_wavelets(
+            Y, phi_Y, lambda_Y, self.n_filters, self.overlap)
+        tasklogger.log_complete("wavelets")
+        #  correlate the spectral domain wavelet coefficients.
+        tasklogger.log_start("orthogonal transformation")
+        transform = build_wavelet_transform(
+            wavelet_X, wavelet_Y, self.n_filters)
+        tasklogger.log_complete("orthogonal transformation")
+        #  compute transformed data
+        tasklogger.log_start("transformed data")
+        E = combine_eigenvectors(transform, phi_X, phi_Y,
+                                 lambda_X, lambda_Y, t=self.t)
+        # build the joint diffusion map
+        tasklogger.log_start("diffusion coordinates")
+        phi_transform, lambda_transform = math.diffusionCoordinates(
+            E, self.decay_XY, self.knn_XY, self.n_pca_XY,
+            n_jobs=self.n_jobs, verbose=self.verbose,
+            random_state=self.random_state)
+        XY_aligned = math.diffusionMap(phi_transform, lambda_transform)
+        tasklogger.log_complete("diffusion coordinates")
+        tasklogger.log_complete("transformed data")
+        tasklogger.log_complete("Harmonic Alignment")
+        return XY_aligned

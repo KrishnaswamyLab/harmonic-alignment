@@ -1,2 +1,2 @@
-from .harmonicalignment import align
+from .harmonicalignment import *
 from .version import __version__

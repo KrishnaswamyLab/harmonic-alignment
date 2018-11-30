@@ -98,8 +98,8 @@ imgs = digits['data']
 n_samples = 1000
 n_features = 784
 n_iters = 1
-n_percentages = 1
-n_wavelets = 1
+n_percentages = 3
+n_wavelets = 2
 
 colreplace_probs = np.linspace(
     0, 1, n_percentages) if n_percentages > 1 else [1]

@@ -3,7 +3,7 @@ from sklearn import datasets, neighbors
 from scipy import stats
 import numpy as np
 import harmonicalignment
-import harmonicalignment.utils
+import harmonicalignment.math
 
 from shutil import copyfileobj
 from six.moves import urllib
@@ -39,8 +39,8 @@ imgs = digits['data']
 n_samples = 1000
 n_features = 784
 n_iters = 1
-n_percentages = 1
-n_wavelets = 1
+n_percentages = 3
+n_wavelets = 2
 
 colreplace_probs = np.linspace(
     0, 1, n_percentages) if n_percentages > 1 else [1]
@@ -82,7 +82,7 @@ for p in range(n_percentages):
         #  transform X2
         X2_rotate = X2 @ random_rotation.T
         X_combined = np.vstack([X1, X2_rotate])
-        U_combined, S_combined = harmonicalignment.utils.diffusionCoordinates(
+        U_combined, S_combined = harmonicalignment.math.diffusionCoordinates(
             X_combined, decay_1, knn_1, pca_1)
         # this is for evaluating unaligned data.  You can also ploit this.
         #  slice the labels
@@ -95,12 +95,13 @@ for p in range(n_percentages):
                                    DM_combined[n_samples:, :], X2_labels, 5)
         for scale_idx in range(n_wavelets):
             n_filters = wavelet_scales[scale_idx]
-            Z = harmonicalignment.align(
-                X1, X2_rotate, n_filters, t=diffusion_t, overlap=2,
+            Z = harmonicalignment.HarmonicAlignment(
+                n_filters, t=diffusion_t, overlap=2,
                 verbose=1,
                 knn_X=knn_1, knn_Y=knn_2, knn_XY=knn_transform,
                 decay_X=decay_1, decay_Y=decay_2, decay_XY=decay_transform,
-                n_pca_X=pca_1, n_pca_Y=pca_2, n_pca_XY=pca_transform)
+                n_pca_X=pca_1, n_pca_Y=pca_2,
+                n_pca_XY=pca_transform).align(X1, X2_rotate)
             afterprct = knnclassifier(Z[:n_samples, :], X1_labels,
                                       Z[n_samples:, :], X2_labels, 5)
             output[p, iter_idx, scale_idx, 0] = beforeprct
