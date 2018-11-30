@@ -14,7 +14,6 @@ install_requires = [
 
 test_requires = [
     'nose2',
-    'unittest',
     'coverage',
     'coveralls'
 ]
