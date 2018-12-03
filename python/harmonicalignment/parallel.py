@@ -10,6 +10,7 @@ class ParallelQueue(object):
 
     def __enter__(self):
         self.parallel.__enter__()
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.parallel.__exit__(exc_type, exc_value, traceback)
@@ -20,14 +21,13 @@ class ParallelQueue(object):
         self.kwargs = []
 
     def queue(self, function, *args, **kwargs):
-        self.functions.append(function)
+        self.functions.append(joblib.delayed(function))
         self.args.append(args)
         self.kwargs.append(kwargs)
 
     def run(self):
-        result = joblib.Parallel(self.n_jobs)(
-            joblib.delayed(self.functions[i])(
-                *(self.args[i]), **(self.kwargs[i]))
-            for i in range(len(self.functions)))
+        result = self.parallel(self.functions[i](*(self.args[i]),
+                                                 **(self.kwargs[i]))
+                               for i in range(len(self.functions)))
         self.reset()
         return result
