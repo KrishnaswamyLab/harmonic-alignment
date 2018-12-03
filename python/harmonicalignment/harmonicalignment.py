@@ -2,8 +2,9 @@ from __future__ import division
 from builtins import super
 import numpy as np
 import tasklogger
+import joblib
 
-from . import utils, math
+from . import utils, math, parallel
 
 
 def itersine_wavelet(loc, scale, overlap):
@@ -107,7 +108,7 @@ class HarmonicAlignment(object):
         self.n_filters = n_filters
         self.overlap = overlap
         self.t = t
-        self.n_jobs = n_jobs
+        self.n_jobs = joblib.effective_n_jobs(n_jobs=n_jobs)
         self.random_state = random_state
         self.verbose = verbose
         self.knn_X = utils.with_default(knn_X, knn)
@@ -139,23 +140,36 @@ class HarmonicAlignment(object):
         tasklogger.log_start("Harmonic Alignment")
         np.random.seed(self.random_state)
         # normalized L with diffusion coordinates
-        tasklogger.log_start("diffusion coordinates")
-        phi_X, lambda_X = math.diffusionCoordinates(
-            X, self.decay_X, self.knn_X, self.n_pca_X,
-            n_jobs=self.n_jobs, verbose=self.verbose,
-            random_state=self.random_state)
-        phi_Y, lambda_Y = math.diffusionCoordinates(
-            Y, self.decay_Y, self.knn_Y, self.n_pca_Y,
-            n_jobs=self.n_jobs, verbose=self.verbose,
-            random_state=self.random_state)
-        tasklogger.log_complete("diffusion coordinates")
-        # evaluate wavelets over data in the spectral domain
-        tasklogger.log_start("wavelets")
-        wavelet_X = evaluate_itersine_wavelets(
-            X, phi_X, lambda_X, self.n_filters, self.overlap)
-        wavelet_Y = evaluate_itersine_wavelets(
-            Y, phi_Y, lambda_Y, self.n_filters, self.overlap)
-        tasklogger.log_complete("wavelets")
+        with parallel.ParallelQueue(n_jobs=min(2, self.n_jobs)) as q:
+            tasklogger.log_start("diffusion coordinates")
+            q.queue(math.diffusionCoordinates, X,
+                    decay=self.decay_X,
+                    knn=self.knn_X,
+                    n_pca=self.n_pca_X,
+                    n_jobs=max(self.n_jobs // 2, 1),
+                    verbose=self.verbose,
+                    random_state=self.random_state)
+            q.queue(math.diffusionCoordinates, Y,
+                    decay=self.decay_Y,
+                    knn=self.knn_Y,
+                    n_pca=self.n_pca_Y,
+                    n_jobs=max(self.n_jobs // 2, 1),
+                    verbose=self.verbose,
+                    random_state=self.random_state)
+            (phi_X, lambda_X), (phi_Y, lambda_Y) = q.run()
+            tasklogger.log_complete("diffusion coordinates")
+            # evaluate wavelets over data in the spectral domain
+            tasklogger.log_start("wavelets")
+            q.queue(evaluate_itersine_wavelets,
+                    X, phi_X, lambda_X,
+                    n_filters=self.n_filters,
+                    overlap=self.overlap)
+            q.queue(evaluate_itersine_wavelets,
+                    Y, phi_Y, lambda_Y,
+                    n_filters=self.n_filters,
+                    overlap=self.overlap)
+            wavelet_X, wavelet_Y = q.run()
+            tasklogger.log_complete("wavelets")
         #  correlate the spectral domain wavelet coefficients.
         tasklogger.log_start("orthogonal transformation")
         transform = build_wavelet_transform(
