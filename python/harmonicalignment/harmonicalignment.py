@@ -117,9 +117,12 @@ class HarmonicAlignment(object):
         self.decay_X = utils.with_default(decay_X, decay)
         self.decay_Y = utils.with_default(decay_Y, decay)
         self.decay_XY = utils.with_default(decay_XY, decay)
-        self.n_pca_X = utils.with_default(n_pca_X, n_pca)
-        self.n_pca_Y = utils.with_default(n_pca_Y, n_pca)
-        self.n_pca_XY = utils.with_default(n_pca_XY, n_pca)
+        self.n_pca_X = utils.with_default(
+            n_pca_X, n_pca) if n_pca_X != 0 else None
+        self.n_pca_Y = utils.with_default(
+            n_pca_Y, n_pca) if n_pca_Y != 0 else None
+        self.n_pca_XY = utils.with_default(
+            n_pca_XY, n_pca) if n_pca_XY != 0 else None
         tasklogger.set_level(self.verbose)
         super().__init__()
 
