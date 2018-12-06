@@ -97,6 +97,7 @@ class TestDigits(unittest.TestCase):
         self.pca_transform = None
         # diffusion time for final embedding
         self.diffusion_t = 1
+        self.overlap = 2
 
         self.pct = 0.5
         self.n_filters = 4
@@ -125,26 +126,26 @@ class TestDigits(unittest.TestCase):
 
     def align(self):
         np.random.seed(self.random_state)
-        U1, S1 = diffusionCoordinates(
+        phi_X, lambda_X = diffusionCoordinates(
             self.X1, self.decay_1, self.knn_1, self.pca_1,
             random_state=self.random_state)
-        U2, S2 = diffusionCoordinates(
+        phi_Y, lambda_Y = diffusionCoordinates(
             self.X2_rotate, self.decay_2, self.knn_2, self.pca_2,
             random_state=self.random_state)
-        X1_fourier = U1.T.dot(self.X1)
-        X2_rotate_fourier = U2.T.dot(self.X2_rotate)
-        wavelet_1 = build_wavelets(S1, self.n_filters, 2)
-        wavelet_2 = build_wavelets(S2, self.n_filters, 2)
-        wavelet_1_spectral = np.conj(wavelet_1)[:, :, None] * \
+        X1_fourier = phi_X.T.dot(self.X1)
+        X2_rotate_fourier = phi_Y.T.dot(self.X2_rotate)
+        wavelet_1 = build_wavelets(lambda_X, self.n_filters, self.overlap)
+        wavelet_2 = build_wavelets(lambda_Y, self.n_filters, self.overlap)
+        wavelet_1_eval = np.conj(wavelet_1)[:, :, None] * \
             X1_fourier[:, None, :]
-        wavelet_2_spectral = np.conj(wavelet_2)[:, :, None] * \
+        wavelet_2_eval = np.conj(wavelet_2)[:, :, None] * \
             X2_rotate_fourier[:, None, :]
         #  correlate the spectral domain wavelet coefficients.
-        blocks = np.zeros((wavelet_1_spectral.shape[0], self.n_filters,
-                           wavelet_2_spectral.shape[0]))
+        blocks = np.zeros((wavelet_1_eval.shape[0], self.n_filters,
+                           wavelet_2_eval.shape[0]))
         for i in range(self.n_filters):  # for each filter, build a correlation
-            blocks[:, i, :] = wavelet_1_spectral[
-                :, i, :].dot(wavelet_2_spectral[:, i, :].T)
+            blocks[:, i, :] = wavelet_1_eval[
+                :, i, :].dot(wavelet_2_eval[:, i, :].T)
 
         #  construct transformation matrix
         transform = np.sum(blocks, axis=1)
@@ -153,28 +154,26 @@ class TestDigits(unittest.TestCase):
         Ut, _, Vt = randSVD(transform, random_state=self.random_state)
         transform_orth = Ut.dot(Vt.T)
         #  compute transformed data
-        U1_transform = U1.dot(transform_orth)
-        # U1 in span(U2)
-        U2_transform = U2.dot(transform_orth.T)
-        #  U2 in span(U1)
-        E = np.vstack([np.hstack([U1, U1_transform]),
-                       np.hstack([U2_transform, U2])])
+        phi_X_transform = phi_X.dot(transform_orth)
+        # phi_X in span(phi_Y)
+        phi_Y_transform = phi_Y.dot(transform_orth.T)
+        #  phi_Y in span(phi_X)
+        E = np.vstack([np.hstack([phi_X, phi_X_transform]),
+                       np.hstack([phi_Y_transform, phi_Y])])
         E_weighted = E.dot(np.diag(np.exp(
-            -self.diffusion_t * np.concatenate([S1, S2]))))
+            -self.diffusion_t * np.concatenate([lambda_X, lambda_Y]))))
         # store output
-        self.U1 = U1
-        self.U2 = U2
-        self.S1 = S1
-        self.S2 = S2
-        self.wavelet_1_spectral = wavelet_1_spectral
-        self.wavelet_2_spectral = wavelet_2_spectral
+        self.phi_X = phi_X
+        self.phi_Y = phi_Y
+        self.lambda_X = lambda_X
+        self.lambda_Y = lambda_Y
         self.transform = transform
         self.transform_orth = transform_orth
         self.E_weighted = E_weighted
 
     def test_harmonicalignment(self):
         Z = harmonicalignment.HarmonicAlignment(
-            self.n_filters, t=self.diffusion_t, overlap=2,
+            self.n_filters, t=self.diffusion_t, overlap=self.overlap,
             n_jobs=1, verbose=0, random_state=self.random_state,
             knn_X=self.knn_1, knn_Y=self.knn_2, knn_XY=self.knn_transform,
             decay_X=self.decay_1, decay_Y=self.decay_2,
@@ -183,7 +182,7 @@ class TestDigits(unittest.TestCase):
         assert Z.shape == (self.n_samples * 2, self.n_samples * 2 - 1)
         # parallel processing
         Z2 = harmonicalignment.HarmonicAlignment(
-            self.n_filters, t=self.diffusion_t, overlap=2,
+            self.n_filters, t=self.diffusion_t, overlap=self.overlap,
             n_jobs=-1, verbose=0, random_state=self.random_state,
             knn_X=self.knn_1, knn_Y=self.knn_2, knn_XY=self.knn_transform,
             decay_X=self.decay_1, decay_Y=self.decay_2,
@@ -193,32 +192,32 @@ class TestDigits(unittest.TestCase):
 
     def test_diffusion_coords(self):
         np.testing.assert_allclose(
-            self.S1, harmonicalignment.math.diffusionCoordinates(
+            self.lambda_X, harmonicalignment.math.diffusionCoordinates(
                 self.X1, knn=self.knn_1, decay=self.decay_1, n_pca=self.pca_1,
                 random_state=self.random_state)[1], atol=1e-3, rtol=1e-2)
 
     def test_diffusion_map(self):
         np.testing.assert_equal(
-            self.U1 * np.exp(-self.diffusion_t * self.S1),
-            harmonicalignment.math.diffusionMap(self.U1, self.S1,
+            self.phi_X * np.exp(-self.diffusion_t * self.lambda_X),
+            harmonicalignment.math.diffusionMap(self.phi_X, self.lambda_X,
                                                 t=self.diffusion_t))
 
     def test_wavelets(self):
         for filter_idx in range(self.n_filters):
             np.testing.assert_equal(
-                self.wavelet_1_spectral[:, filter_idx, :],
+                self.wavelet_1_eval[:, filter_idx, :],
                 harmonicalignment.evaluate_itersine_wavelet(
                     filter_idx,
-                    self.X1, self.U1, self.S1,
-                    self.n_filters, overlap=2))
+                    self.X1, self.phi_X, self.lambda_X,
+                    self.n_filters, overlap=self.overlap))
 
     def test_correlate(self):
         np.testing.assert_equal(
             self.transform,
             harmonicalignment.correlate_wavelets(
-                self.X1, self.U1, self.S1,
-                self.X2_rotate, self.U2, self.S2,
-                self.n_filters, overlap=2))
+                self.X1, self.phi_X, self.lambda_X,
+                self.X2_rotate, self.phi_Y, self.lambda_Y,
+                self.n_filters, overlap=self.overlap))
 
     def test_orthogonalize(self):
         np.testing.assert_allclose(
@@ -229,5 +228,5 @@ class TestDigits(unittest.TestCase):
         np.testing.assert_equal(
             self.E_weighted,
             harmonicalignment.combine_eigenvectors(
-                self.transform_orth, self.U1, self.U2,
-                self.S1, self.S2, t=self.diffusion_t))
+                self.transform_orth, self.phi_X, self.phi_Y,
+                self.lambda_X, self.lambda_Y, t=self.diffusion_t))
