@@ -39,12 +39,9 @@ def evaluate_itersine_wavelets(X, phi_X, lambda_X, n_filters, overlap):
 
 
 def correlate_wavelets(wavelet_X, wavelet_Y, n_filters):
-    blocks = np.zeros((wavelet_X.shape[0], n_filters, wavelet_Y.shape[0]))
+    transform = np.zeros((wavelet_X.shape[0], wavelet_Y.shape[0]))
     for i in range(n_filters):  # for each filter, build a correlation
-        blocks[:, i, :] = wavelet_X[:, i, :].dot(wavelet_Y[:, i, :].T)
-    #  construct transformation matrix
-    # sum wavelets up
-    transform = np.sum(blocks, axis=1)
+        transform += wavelet_X[:, i, :].dot(wavelet_Y[:, i, :].T)
     return transform
 
 
