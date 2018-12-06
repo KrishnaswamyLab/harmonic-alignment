@@ -31,14 +31,8 @@ def orthogonalize(X, random_state=None):
     return X_orth
 
 
-def diffusionCoordinates(X, decay, knn, n_pca,
-                         n_jobs=1, verbose=0, random_state=None):
+def graphDiffusionCoordinates(G):
     # diffusion maps with normalized Laplacian
-    G = graphtools.Graph(X, knn=knn, decay=decay,
-                         n_pca=n_pca, use_pygsp=True, thresh=1e-4,
-                         anisotropy=1, lap_type='normalized',
-                         n_jobs=n_jobs, verbose=verbose,
-                         random_state=random_state)
     tasklogger.log_start("eigendecomposition")
     G.compute_fourier_basis()
     tasklogger.log_complete("eigendecomposition")
@@ -49,6 +43,17 @@ def diffusionCoordinates(X, decay, knn, n_pca,
     #  trim trivial information
     phi, lmbda = phi[:, 1:], lmbda[1:]
     return phi, lmbda
+
+
+def diffusionCoordinates(X, decay, knn, n_pca,
+                         n_jobs=1, verbose=0, random_state=None):
+    # diffusion maps with normalized Laplacian
+    G = graphtools.Graph(X, knn=knn, decay=decay,
+                         n_pca=n_pca, use_pygsp=True, thresh=1e-4,
+                         anisotropy=1, lap_type='normalized',
+                         n_jobs=n_jobs, verbose=verbose,
+                         random_state=random_state)
+    return graphDiffusionCoordinates(G)
 
 
 def diffusionMap(phi, lmbda, t=1):

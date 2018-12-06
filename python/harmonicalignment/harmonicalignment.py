@@ -3,6 +3,7 @@ from builtins import super
 import numpy as np
 import tasklogger
 import joblib
+import graphtools
 
 from . import utils, math, parallel
 
@@ -204,13 +205,23 @@ class HarmonicAlignment(object):
         E = combine_eigenvectors(transform, phi_X, phi_Y,
                                  lambda_X, lambda_Y, t=self.t)
         # build the joint diffusion map
-        tasklogger.log_start("diffusion coordinates")
-        phi_transform, lambda_transform = math.diffusionCoordinates(
-            E, self.decay_XY, self.knn_XY, self.n_pca_XY,
+        tasklogger.log_start("graph Laplacian")
+        self.graph = graphtools.Graph(
+            E, knn=self.knn_XY, decay=self.decay_XY,
+            n_pca=self.n_pca_XY, use_pygsp=True, thresh=1e-4,
+            anisotropy=1, lap_type='normalized',
             n_jobs=self.n_jobs, verbose=self.verbose,
             random_state=self.random_state)
-        XY_aligned = math.diffusionMap(phi_transform, lambda_transform)
-        tasklogger.log_complete("diffusion coordinates")
+        tasklogger.log_complete("graph Laplacian")
         tasklogger.log_complete("transformed data")
         tasklogger.log_complete("Harmonic Alignment")
-        return XY_aligned
+        return self.graph
+
+    def diffusion_map(self):
+        if not hasattr(self, "graph"):
+            raise RuntimeError(
+                "No alignment performed. "
+                "Please call HarmonicAlignment.align() first.")
+        phi_transform, lambda_transform = math.graphDiffusionCoordinates(
+            self.graph)
+        return math.diffusionMap(phi_transform, lambda_transform)

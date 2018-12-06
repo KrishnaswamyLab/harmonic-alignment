@@ -174,23 +174,27 @@ class TestDigits(unittest.TestCase):
         self.E_weighted = E_weighted
 
     def test_harmonicalignment(self):
-        Z = harmonicalignment.HarmonicAlignment(
+        G = harmonicalignment.HarmonicAlignment(
             self.n_filters, t=self.diffusion_t, overlap=self.overlap,
             n_jobs=1, verbose=0, random_state=self.random_state,
             knn_X=self.knn_1, knn_Y=self.knn_2, knn_XY=self.knn_transform,
             decay_X=self.decay_1, decay_Y=self.decay_2,
             decay_XY=self.decay_transform, n_pca_X=self.pca_1, n_pca_Y=self.pca_2,
             n_pca_XY=self.pca_transform).align(self.X1, self.X2_rotate)
-        assert Z.shape == (self.n_samples * 2, self.n_samples * 2 - 1)
+        assert G.K.shape == (self.n_samples * 2, self.n_samples * 2)
         # parallel processing
-        Z2 = harmonicalignment.HarmonicAlignment(
+        harmonic_op = harmonicalignment.HarmonicAlignment(
             self.n_filters, t=self.diffusion_t, overlap=self.overlap,
             n_jobs=-1, verbose=0, random_state=self.random_state,
             knn_X=self.knn_1, knn_Y=self.knn_2, knn_XY=self.knn_transform,
             decay_X=self.decay_1, decay_Y=self.decay_2,
             decay_XY=self.decay_transform, n_pca_X=self.pca_1, n_pca_Y=self.pca_2,
-            n_pca_XY=self.pca_transform).align(self.X1, self.X2_rotate)
-        np.testing.assert_allclose(Z, Z2, rtol=1e-10, atol=1e-10)
+            n_pca_XY=self.pca_transform)
+        G2 = harmonic_op.align(self.X1, self.X2_rotate)
+        np.testing.assert_allclose(
+            (G.K - G2.K).data, 0, rtol=1e-10, atol=1e-10)
+        DM = harmonic_op.diffusion_map()
+        assert DM.shape == (self.n_samples * 2, self.n_samples * 2 - 1)
 
     def test_diffusion_coords(self):
         np.testing.assert_allclose(
