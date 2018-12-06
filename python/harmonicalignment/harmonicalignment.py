@@ -13,40 +13,74 @@ def itersine_wavelet(loc, scale, overlap):
     return itersine_wavelet_i
 
 
-def build_itersine_wavelets(lmbda, n_filters, overlap):
+def build_itersine_wavelet(filter_idx, lmbda, n_filters, overlap):
     lambda_max = max(lmbda)
     # maximum laplacian eigenvalue
     scale = lambda_max / (n_filters - overlap + 1) * (overlap)
     # response evaluation... this is the money
-    lambda_filt = np.zeros((len(lmbda), n_filters))
-    for i in range(n_filters):
-        filter_i = itersine_wavelet(loc=i + 1, scale=scale, overlap=overlap)
-        lambda_filt[:, i] = filter_i(lmbda)
-    return lambda_filt
+    filter_fn = itersine_wavelet(
+        loc=filter_idx + 1, scale=scale, overlap=overlap)
+    return filter_fn(lmbda)
 
 
-def evaluate_itersine_wavelets(X, phi_X, lambda_X, n_filters, overlap):
+def evaluate_itersine_wavelet(filter_idx, X, phi_X, lambda_X, n_filters, overlap):
     # get fourier coefficients
     X_fourier = phi_X.T.dot(X)
     # build wavelets
-    wavelet_X = build_itersine_wavelets(lambda_X, n_filters, overlap=overlap)
+    wavelet_X = build_itersine_wavelet(
+        filter_idx, lambda_X, n_filters, overlap=overlap)
     # wavelet_X is the filter evaluated over the eigenvalues.  So we
     # can pointwise multiply each wavelet_X / 2 by the fourier
     # coefficients
     # evaluate wavelets over data in the spectral domain
-    wavelet_X_eval = np.conj(wavelet_X)[:, :, None] * X_fourier[:, None, :]
+    wavelet_X_eval = np.conj(wavelet_X)[:, None] * X_fourier
     return wavelet_X_eval
 
 
-def correlate_wavelets(wavelet_X, wavelet_Y, n_filters):
-    transform = np.zeros((wavelet_X.shape[0], wavelet_Y.shape[0]))
-    for i in range(n_filters):  # for each filter, build a correlation
-        transform += wavelet_X[:, i, :].dot(wavelet_Y[:, i, :].T)
-    return transform
+def correlate_wavelet(filter_idx,
+                      X, phi_X, lambda_X,
+                      Y, phi_Y, lambda_Y,
+                      n_filters, overlap, q):
+    q.queue(evaluate_itersine_wavelet,
+            filter_idx, X, phi_X, lambda_X,
+            n_filters=n_filters,
+            overlap=overlap)
+    q.queue(evaluate_itersine_wavelet,
+            filter_idx, Y, phi_Y, lambda_Y,
+            n_filters=n_filters,
+            overlap=overlap)
+    wavelet_X, wavelet_Y = q.run()
+    return wavelet_X.dot(wavelet_Y.T)
 
 
-def build_wavelet_transform(wavelet_X, wavelet_Y, n_filters):
-    transform = correlate_wavelets(wavelet_X, wavelet_Y, n_filters)
+def correlate_wavelets(X, phi_X, lambda_X,
+                       Y, phi_Y, lambda_Y,
+                       n_filters, overlap,
+                       q=None, n_jobs=1):
+    if q is None:
+        with parallel.ParallelQueue(n_jobs=n_jobs) as q:
+            return correlate_wavelets(X, phi_X, lambda_X,
+                                      Y, phi_Y, lambda_Y,
+                                      n_filters, overlap, q=q)
+    else:
+        transform = np.zeros((phi_X.shape[1], phi_Y.shape[1]))
+        for filter_idx in range(n_filters):
+            # for each filter, build a correlation
+            transform += correlate_wavelet(filter_idx,
+                                           X, phi_X, lambda_X,
+                                           Y, phi_Y, lambda_Y,
+                                           n_filters, overlap, q)
+        return transform
+
+
+def build_wavelet_transform(X, phi_X, lambda_X,
+                            Y, phi_Y, lambda_Y,
+                            n_filters, overlap,
+                            q=None, n_jobs=1):
+    transform = correlate_wavelets(X, phi_X, lambda_X,
+                                   Y, phi_Y, lambda_Y,
+                                   n_filters, overlap,
+                                   q=q, n_jobs=n_jobs)
     transform_orth = math.orthogonalize(transform)
     return transform_orth
 
@@ -160,21 +194,11 @@ class HarmonicAlignment(object):
             tasklogger.log_complete("diffusion coordinates")
             # evaluate wavelets over data in the spectral domain
             tasklogger.log_start("wavelets")
-            q.queue(evaluate_itersine_wavelets,
-                    X, phi_X, lambda_X,
-                    n_filters=self.n_filters,
-                    overlap=self.overlap)
-            q.queue(evaluate_itersine_wavelets,
-                    Y, phi_Y, lambda_Y,
-                    n_filters=self.n_filters,
-                    overlap=self.overlap)
-            wavelet_X, wavelet_Y = q.run()
+            transform = build_wavelet_transform(
+                X, phi_X, lambda_X,
+                Y, phi_Y, lambda_Y,
+                self.n_filters, self.overlap, q=q)
             tasklogger.log_complete("wavelets")
-        #  correlate the spectral domain wavelet coefficients.
-        tasklogger.log_start("orthogonal transformation")
-        transform = build_wavelet_transform(
-            wavelet_X, wavelet_Y, self.n_filters)
-        tasklogger.log_complete("orthogonal transformation")
         #  compute transformed data
         tasklogger.log_start("transformed data")
         E = combine_eigenvectors(transform, phi_X, phi_Y,

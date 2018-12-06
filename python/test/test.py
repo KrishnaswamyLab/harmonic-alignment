@@ -189,7 +189,7 @@ class TestDigits(unittest.TestCase):
             decay_X=self.decay_1, decay_Y=self.decay_2,
             decay_XY=self.decay_transform, n_pca_X=self.pca_1, n_pca_Y=self.pca_2,
             n_pca_XY=self.pca_transform).align(self.X1, self.X2_rotate)
-        np.testing.assert_allclose(Z, Z2, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(Z, Z2, rtol=1e-10, atol=1e-10)
 
     def test_diffusion_coords(self):
         np.testing.assert_allclose(
@@ -204,18 +204,21 @@ class TestDigits(unittest.TestCase):
                                                 t=self.diffusion_t))
 
     def test_wavelets(self):
-        np.testing.assert_equal(
-            self.wavelet_1_spectral,
-            harmonicalignment.evaluate_itersine_wavelets(
-                self.X1, self.U1, self.S1,
-                self.n_filters, overlap=2))
+        for filter_idx in range(self.n_filters):
+            np.testing.assert_equal(
+                self.wavelet_1_spectral[:, filter_idx, :],
+                harmonicalignment.evaluate_itersine_wavelet(
+                    filter_idx,
+                    self.X1, self.U1, self.S1,
+                    self.n_filters, overlap=2))
 
     def test_correlate(self):
         np.testing.assert_equal(
             self.transform,
             harmonicalignment.correlate_wavelets(
-                self.wavelet_1_spectral, self.wavelet_2_spectral,
-                self.n_filters))
+                self.X1, self.U1, self.S1,
+                self.X2_rotate, self.U2, self.S2,
+                self.n_filters, overlap=2))
 
     def test_orthogonalize(self):
         np.testing.assert_allclose(
