@@ -3,6 +3,7 @@ import graphtools
 import numpy as np
 from sklearn import decomposition
 from sklearn.utils.extmath import randomized_svd
+import tasklogger
 
 
 def itersine(x):
@@ -38,7 +39,9 @@ def diffusionCoordinates(X, decay, knn, n_pca,
                          anisotropy=1, lap_type='normalized',
                          n_jobs=n_jobs, verbose=verbose,
                          random_state=random_state)
+    tasklogger.log_start("eigendecomposition")
     G.compute_fourier_basis()
+    tasklogger.log_complete("eigendecomposition")
     phi, lmbda = G.U, G.e
     # smallest to largest
     lmbda_idx = np.argsort(lmbda)
