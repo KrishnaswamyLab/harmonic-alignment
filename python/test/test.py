@@ -7,6 +7,12 @@ import numpy as np
 import harmonicalignment
 import unittest
 
+import warnings
+warnings.filterwarnings(
+    "ignore", category=PendingDeprecationWarning,
+    message="the matrix subclass is not the recommended way to represent "
+    "matrices or deal with linear algebra ")
+
 
 def randPCA(X, n_components=None, random_state=None):
     pca_op = decomposition.PCA(n_components, random_state=random_state)

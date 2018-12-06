@@ -1,7 +1,6 @@
 from __future__ import division
 import graphtools
 import numpy as np
-from scipy import sparse
 from sklearn import decomposition
 from sklearn.utils.extmath import randomized_svd
 
