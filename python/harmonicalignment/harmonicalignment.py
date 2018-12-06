@@ -16,7 +16,7 @@ def itersine_wavelet(loc, scale, overlap):
 def build_itersine_wavelet(filter_idx, lmbda, n_filters, overlap):
     lambda_max = max(lmbda)
     # maximum laplacian eigenvalue
-    scale = lambda_max / (n_filters - overlap + 1) * (overlap)
+    scale = lambda_max * overlap / (n_filters - overlap + 1)
     # response evaluation... this is the money
     filter_fn = itersine_wavelet(
         loc=filter_idx + 1, scale=scale, overlap=overlap)
