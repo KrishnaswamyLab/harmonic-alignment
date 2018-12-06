@@ -167,6 +167,8 @@ class TestDigits(unittest.TestCase):
         self.phi_Y = phi_Y
         self.lambda_X = lambda_X
         self.lambda_Y = lambda_Y
+        self.wavelet_1_eval = wavelet_1_eval
+        self.wavelet_2_eval = wavelet_2_eval
         self.transform = transform
         self.transform_orth = transform_orth
         self.E_weighted = E_weighted
