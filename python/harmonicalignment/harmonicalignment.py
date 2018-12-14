@@ -158,6 +158,37 @@ class HarmonicAlignment(object):
         tasklogger.set_level(self.verbose)
         super().__init__()
 
+    def fit(self, X, Y, q=None):
+        if hasattr(self, "phi_X"):
+            tasklogger.log_info("Using precomputed diffusion coordinates.")
+        else:
+            tasklogger.log_start("diffusion coordinates")
+            if q is None:
+                with parallel.ParallelQueue(n_jobs=min(2, self.n_jobs)) as q:
+                    return self.fit(X, Y, q)
+            else:
+                q.queue(math.diffusionCoordinates, X,
+                        decay=self.decay_X,
+                        knn=self.knn_X,
+                        n_pca=self.n_pca_X,
+                        n_jobs=max(self.n_jobs // 2, 1),
+                        verbose=self.verbose,
+                        random_state=self.random_state)
+                q.queue(math.diffusionCoordinates, Y,
+                        decay=self.decay_Y,
+                        knn=self.knn_Y,
+                        n_pca=self.n_pca_Y,
+                        n_jobs=max(self.n_jobs // 2, 1),
+                        verbose=self.verbose,
+                        random_state=self.random_state)
+            (phi_X, lambda_X), (phi_Y, lambda_Y) = q.run()
+            self.phi_X = phi_X
+            self.lambda_X = lambda_X
+            self.phi_Y = phi_Y
+            self.lambda_Y = lambda_Y
+            tasklogger.log_complete("diffusion coordinates")
+        return self
+
     def align(self, X, Y):
         """Harmonic alignment
 
@@ -176,34 +207,18 @@ class HarmonicAlignment(object):
         np.random.seed(self.random_state)
         # normalized L with diffusion coordinates
         with parallel.ParallelQueue(n_jobs=min(2, self.n_jobs)) as q:
-            tasklogger.log_start("diffusion coordinates")
-            q.queue(math.diffusionCoordinates, X,
-                    decay=self.decay_X,
-                    knn=self.knn_X,
-                    n_pca=self.n_pca_X,
-                    n_jobs=max(self.n_jobs // 2, 1),
-                    verbose=self.verbose,
-                    random_state=self.random_state)
-            q.queue(math.diffusionCoordinates, Y,
-                    decay=self.decay_Y,
-                    knn=self.knn_Y,
-                    n_pca=self.n_pca_Y,
-                    n_jobs=max(self.n_jobs // 2, 1),
-                    verbose=self.verbose,
-                    random_state=self.random_state)
-            (phi_X, lambda_X), (phi_Y, lambda_Y) = q.run()
-            tasklogger.log_complete("diffusion coordinates")
+            self.fit(X, Y, q)
             # evaluate wavelets over data in the spectral domain
             tasklogger.log_start("wavelets")
             transform = build_wavelet_transform(
-                X, phi_X, lambda_X,
-                Y, phi_Y, lambda_Y,
+                X, self.phi_X, self.lambda_X,
+                Y, self.phi_Y, self.lambda_Y,
                 self.n_filters, self.overlap, q=q)
             tasklogger.log_complete("wavelets")
         #  compute transformed data
         tasklogger.log_start("transformed data")
-        E = combine_eigenvectors(transform, phi_X, phi_Y,
-                                 lambda_X, lambda_Y, t=self.t)
+        E = combine_eigenvectors(transform, self.phi_X, self.phi_Y,
+                                 self.lambda_X, self.lambda_Y, t=self.t)
         # build the joint diffusion map
         tasklogger.log_start("graph Laplacian")
         self.graph = graphtools.Graph(
@@ -217,11 +232,38 @@ class HarmonicAlignment(object):
         tasklogger.log_complete("Harmonic Alignment")
         return self.graph
 
-    def diffusion_map(self):
-        if not hasattr(self, "graph"):
-            raise RuntimeError(
-                "No alignment performed. "
-                "Please call HarmonicAlignment.align() first.")
-        phi_transform, lambda_transform = math.graphDiffusionCoordinates(
-            self.graph)
-        return math.diffusionMap(phi_transform, lambda_transform)
+    def diffusion_map(self, which="aligned"):
+        """Return the diffusion map
+
+        Parameters
+        ----------
+        which : {'x', 'y', 'aligned'}, optional (default: 'aligned')
+
+        Returns
+        -------
+        dm : array-like
+            Diffusion map
+        """
+        if which == "aligned":
+            if not hasattr(self, "graph"):
+                raise RuntimeError(
+                    "No alignment performed. "
+                    "Please call HarmonicAlignment.align() first.")
+            phi, lmbda = math.graphDiffusionCoordinates(
+                self.graph)
+        elif which == "x":
+            if not hasattr(self, "phi_X"):
+                raise RuntimeError(
+                    "No input data assigned. "
+                    "Please call HarmonicAlignment.fit() first.")
+            phi, lmbda = self.phi_X, self.lambda_X
+        elif which == "y":
+            if not hasattr(self, "phi_Y"):
+                raise RuntimeError(
+                    "No input data assigned. "
+                    "Please call HarmonicAlignment.fit() first.")
+            phi, lmbda = self.phi_Y, self.lambda_Y
+        else:
+            raise ValueError("Expected `which` in ['x', 'y', 'aligned']. "
+                             "Got {}".format(which))
+        return math.diffusionMap(phi, lmbda)
