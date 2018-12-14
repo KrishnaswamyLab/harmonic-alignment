@@ -232,12 +232,13 @@ class HarmonicAlignment(object):
         tasklogger.log_complete("Harmonic Alignment")
         return self.graph
 
-    def diffusion_map(self, which="aligned"):
+    def diffusion_map(self, which="aligned", t=1):
         """Return the diffusion map
 
         Parameters
         ----------
         which : {'x', 'y', 'aligned'}, optional (default: 'aligned')
+        t : int, optional (default: 1)
 
         Returns
         -------
@@ -266,4 +267,4 @@ class HarmonicAlignment(object):
         else:
             raise ValueError("Expected `which` in ['x', 'y', 'aligned']. "
                              "Got {}".format(which))
-        return math.diffusionMap(phi, lmbda)
+        return math.diffusionMap(phi, lmbda, t=t)
