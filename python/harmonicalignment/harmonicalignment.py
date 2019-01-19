@@ -117,6 +117,9 @@ class HarmonicAlignment(object):
     n_pca : int, optional (default: 100)
         Default number of principal components on which to build graph.
         If 0, no PCA is performed.
+    n_eigenvectors : int, optional (default: None)
+        Number of eigenvectors of the normalized Laplacian
+        on which to perform alignment. Defaults to all eigenvectors.
     n_jobs : int, optional (default: 1)
         Number of threads. -1 uses all available
     verbose : int or bool, optional (default: 0)
@@ -132,7 +135,7 @@ class HarmonicAlignment(object):
     """
 
     def __init__(self, n_filters, overlap=2, t=1,
-                 knn=5, decay=20, n_pca=100,
+                 knn=5, decay=20, n_pca=100, n_eigenvectors=None,
                  n_jobs=1, verbose=False, random_state=None,
                  knn_X=None, knn_Y=None, knn_XY=None,
                  decay_X=None, decay_Y=None, decay_XY=None,
@@ -140,6 +143,7 @@ class HarmonicAlignment(object):
         self.n_filters = n_filters
         self.overlap = overlap
         self.t = t
+        self.n_eigenvectors = n_eigenvectors
         self.n_jobs = joblib.effective_n_jobs(n_jobs=n_jobs)
         self.random_state = random_state
         self.verbose = verbose
@@ -171,6 +175,7 @@ class HarmonicAlignment(object):
                         decay=self.decay_X,
                         knn=self.knn_X,
                         n_pca=self.n_pca_X,
+                        n_eigenvectors=self.n_eigenvectors,
                         n_jobs=max(self.n_jobs // 2, 1),
                         verbose=self.verbose,
                         random_state=self.random_state)
@@ -178,6 +183,7 @@ class HarmonicAlignment(object):
                         decay=self.decay_Y,
                         knn=self.knn_Y,
                         n_pca=self.n_pca_Y,
+                        n_eigenvectors=self.n_eigenvectors,
                         n_jobs=max(self.n_jobs // 2, 1),
                         verbose=self.verbose,
                         random_state=self.random_state)

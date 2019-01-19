@@ -31,10 +31,15 @@ def orthogonalize(X, random_state=None):
     return X_orth
 
 
-def graphDiffusionCoordinates(G):
+def graphDiffusionCoordinates(G, n_eigenvectors=None):
     # diffusion maps with normalized Laplacian
     tasklogger.log_start("eigendecomposition")
-    G.compute_fourier_basis()
+    if n_eigenvectors is None:
+        G.compute_fourier_basis()
+    else:
+        # temporary workaround until pygsp updates to pypi
+        from scipy import sparse
+        G._e, G._U = sparse.linalg.eigsh(G.L, n_eigenvectors, which='SM')
     tasklogger.log_complete("eigendecomposition")
     phi, lmbda = G.U, G.e
     # smallest to largest
@@ -45,7 +50,7 @@ def graphDiffusionCoordinates(G):
     return phi, lmbda
 
 
-def diffusionCoordinates(X, decay, knn, n_pca,
+def diffusionCoordinates(X, decay, knn, n_pca, n_eigenvectors=None,
                          n_jobs=1, verbose=0, random_state=None):
     # diffusion maps with normalized Laplacian
     G = graphtools.Graph(X, knn=knn, decay=decay,
@@ -53,7 +58,7 @@ def diffusionCoordinates(X, decay, knn, n_pca,
                          anisotropy=1, lap_type='normalized',
                          n_jobs=n_jobs, verbose=verbose,
                          random_state=random_state)
-    return graphDiffusionCoordinates(G)
+    return graphDiffusionCoordinates(G, n_eigenvectors=n_eigenvectors)
 
 
 def diffusionMap(phi, lmbda, t=1):
