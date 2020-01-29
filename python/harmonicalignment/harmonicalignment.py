@@ -171,7 +171,7 @@ class HarmonicAlignment(object):
                 with parallel.ParallelQueue(n_jobs=min(2, self.n_jobs)) as q:
                     return self.fit(X, Y, q)
             else:
-                q.queue(math.diffusionCoordinates, X,
+                q.queue(math.fourierBasis, X,
                         decay=self.decay_X,
                         knn=self.knn_X,
                         n_pca=self.n_pca_X,
@@ -179,7 +179,7 @@ class HarmonicAlignment(object):
                         n_jobs=max(self.n_jobs // 2, 1),
                         verbose=self.verbose,
                         random_state=self.random_state)
-                q.queue(math.diffusionCoordinates, Y,
+                q.queue(math.fourierBasis, Y,
                         decay=self.decay_Y,
                         knn=self.knn_Y,
                         n_pca=self.n_pca_Y,
@@ -264,12 +264,14 @@ class HarmonicAlignment(object):
                     "No input data assigned. "
                     "Please call HarmonicAlignment.fit() first.")
             phi, lmbda = self.phi_X, self.lambda_X
+            lmbda = 1 - lmbda
         elif which == "y":
             if not hasattr(self, "phi_Y"):
                 raise RuntimeError(
                     "No input data assigned. "
                     "Please call HarmonicAlignment.fit() first.")
             phi, lmbda = self.phi_Y, self.lambda_Y
+            lmbda = 1 - lmbda
         else:
             raise ValueError("Expected `which` in ['x', 'y', 'aligned']. "
                              "Got {}".format(which))
