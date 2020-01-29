@@ -8,7 +8,6 @@ import numpy as np
 
 from shutil import copyfileobj
 from six.moves import urllib
-from sklearn.datasets.base import get_data_home
 import os
 
 
@@ -76,22 +75,8 @@ def build_wavelets(lmbda, n_filters, overlap):
     return lambda_filt
 
 
-def fetch_mnist(data_home=None):
-    mnist_alternative_url = "https://github.com/amplab/datascience-sp14/raw/master/lab7/mldata/mnist-original.mat"
-    data_home = get_data_home(data_home=data_home)
-    data_home = os.path.join(data_home, 'mldata')
-    if not os.path.exists(data_home):
-        os.makedirs(data_home)
-    mnist_save_path = os.path.join(data_home, "mnist-original.mat")
-    if not os.path.exists(mnist_save_path):
-        mnist_url = urllib.request.urlopen(mnist_alternative_url)
-        with open(mnist_save_path, "wb") as matlab_file:
-            copyfileobj(mnist_url, matlab_file)
-
-
 np.random.seed(42)
-fetch_mnist()
-digits = datasets.fetch_mldata("MNIST original")
+digits = datasets.fetch_openml('mnist_784')
 labels = digits['target']
 imgs = digits['data']
 
@@ -133,8 +118,9 @@ for p in range(n_percentages):
     random_rotation[:, colReplace] = np.eye(n_features)[:, colReplace]
     for iter_idx in range(n_iters):
         #  sample two sets of digits from MNIST
-        X1_idx = np.random.choice(len(labels), n_samples, replace=False)
-        X2_idx = np.random.choice(len(labels), n_samples, replace=False)
+        sample_idx = np.random.choice(len(labels), n_samples*2, replace=False)
+        X1_idx = sample_idx[:n_samples]
+        X2_idx = sample_idx[n_samples:]
         #  slice the digits
         X1 = imgs[X1_idx, :]
         X2 = imgs[X2_idx, :]
