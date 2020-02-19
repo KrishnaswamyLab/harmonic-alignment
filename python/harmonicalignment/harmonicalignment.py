@@ -86,17 +86,17 @@ def build_wavelet_transform(X, phi_X, lambda_X,
     return transform_orth
 
 
-def combine_eigenvectors(transform, phi_X, phi_Y, lambda_X, lambda_Y, t=1):
+def combine_eigenvectors(transform, phi_X, phi_Y, lambda_X, lambda_Y):
     # phi_X in span(phi_Y)
     phi_X_transform = phi_X.dot(transform)
     #  phi_Y in span(phi_X)
     phi_Y_transform = phi_Y.dot(transform.T)
-    # what is E?
-    E = np.vstack([np.hstack([phi_X, phi_X_transform]),
-                   np.hstack([phi_Y_transform, phi_Y])])
+    # joint diffusion space
+    phi_combined = np.vstack([np.hstack([phi_X, phi_X_transform]),
+                              np.hstack([phi_Y_transform, phi_Y])])
     # weight by low passed eigenvalues
-    E_weighted = E * np.exp(-t * np.concatenate([lambda_X, lambda_Y]))
-    return E_weighted
+    lambda_combined = np.exp(-np.concatenate([lambda_X, lambda_Y]))
+    return phi_combined, lambda_combined
 
 
 class HarmonicAlignment(object):
@@ -223,8 +223,9 @@ class HarmonicAlignment(object):
             tasklogger.log_complete("wavelets")
         #  compute transformed data
         tasklogger.log_start("transformed data")
-        E = combine_eigenvectors(transform, self.phi_X, self.phi_Y,
-                                 self.lambda_X, self.lambda_Y, t=self.t)
+        self.phi_combined, self.lambda_combined = combine_eigenvectors(transform, self.phi_X, self.phi_Y,
+                                 self.lambda_X, self.lambda_Y)
+        E = self.phi_combined @ np.diag(self.lambda_combined ** self.t)
         # build the joint diffusion map
         tasklogger.log_start("graph Laplacian")
         self.graph = graphtools.Graph(
@@ -243,7 +244,7 @@ class HarmonicAlignment(object):
 
         Parameters
         ----------
-        which : {'x', 'y', 'aligned'}, optional (default: 'aligned')
+        which : {'x', 'y', 'aligned', 'intermediate'}, optional (default: 'aligned')
         t : int, optional (default: 1)
 
         Returns
@@ -270,7 +271,35 @@ class HarmonicAlignment(object):
                     "No input data assigned. "
                     "Please call HarmonicAlignment.fit() first.")
             phi, lmbda = self.phi_Y, self.lambda_Y
+        elif which == "intermediate":
+            if not hasattr(self, "phi_combined"):
+                raise RuntimeError(
+                    "No alignment performed. "
+                    "Please call HarmonicAlignment.align() first.")
+            phi, lmbda = self.phi_combined, self.lambda_combined
         else:
-            raise ValueError("Expected `which` in ['x', 'y', 'aligned']. "
+            raise ValueError("Expected `which` in ['x', 'y', 'aligned', 'intermediate']. "
                              "Got {}".format(which))
         return math.diffusionMap(phi, lmbda, t=t)
+
+    def plot_wavelets(self, figsize=(4, 6)):
+        if not (hasattr(self, "lambda_X") and hasattr(self, "lambda_Y")):
+            raise RuntimeError(
+                "No input data assigned. "
+                "Please call HarmonicAlignment.fit() first.")
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, sharex='all')
+        for lmbda, ax, name in zip((self.lambda_X, self.lambda_Y), (ax1, ax2), ('X', 'Y')):
+
+            ax_right = ax.twinx()
+            ax_right.set_ylabel('# of eigenvalues', fontsize='x-large')
+            ax_right.hist(lmbda, 30, zorder=-2, alpha=0.4)
+
+            x = np.linspace(np.min(lmbda), np.max(lmbda), 200)
+            for i in range(self.n_filters):
+                y = build_itersine_wavelet(i, x, self.n_filters, self.overlap)
+                ax.plot(x, y, zorder=1)
+            ax.set_ylabel(r'$h(\lambda)$', fontsize='x-large')
+            ax.set_ylim(0, 1.05)
+            ax.set_title(name, fontsize='xx-large')
+        ax2.set_xlabel(r'$\lambda$', fontsize='x-large')
+        return (fig, (ax1, ax2))
