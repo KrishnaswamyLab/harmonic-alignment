@@ -16,11 +16,9 @@ install_requires = [
 test_requires = [
     'nose2',
     'coverage',
-    'coveralls'
+    'coveralls',
+    'matplotlib'
 ]
-
-if sys.version_info[:2] < (3, 5):
-    raise RuntimeError("Python version >=3.5 required.")
 
 version_py = os.path.join(os.path.dirname(
     __file__), 'harmonicalignment', 'version.py')
@@ -37,6 +35,7 @@ setup(name='harmonicalignment',
       packages=['harmonicalignment', ],
       include_package_data=True,
       license='GNU General Public License Version 2',
+      python_requires='>=3.5',
       install_requires=install_requires,
       extras_require={'test': test_requires},
       test_suite='nose2.collector.collector',
