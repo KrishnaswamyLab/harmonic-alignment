@@ -38,7 +38,6 @@ def graphFourierBasis(G, n_eigenvectors=None):
     else:
         # temporary workaround until pygsp updates to pypi
         from scipy import sparse
-
         G._e, G._U = sparse.linalg.eigsh(G.L, n_eigenvectors, which="SM")
     tasklogger.log_complete("eigendecomposition")
     phi, lmbda = G.U, G.e
@@ -78,7 +77,7 @@ def graphDiffusionCoordinates(G, n_eigenvectors=None):
         phi, lmbda = np.linalg.eigh(A)
     else:
         A = sparse.csr_matrix(G.diff_aff)
-        phi, lmbda = sparse.linalg.eigsh(A, k=n_eigenvectors, which="LM")
+        lmbda, phi = sparse.linalg.eigsh(A, k=n_eigenvectors, which="LM")
     tasklogger.log_complete("eigendecomposition")
     # largest to smallest
     lmbda_idx = np.argsort(lmbda)[::-1]
