@@ -199,7 +199,7 @@ class HarmonicAlignment(object):
                     return self.fit(X, Y, q)
             else:
                 q.queue(
-                    math.fourierBasis,
+                    math.diffusionCoordinates,
                     X,
                     decay=self.decay_X,
                     knn=self.knn_X,
@@ -210,7 +210,7 @@ class HarmonicAlignment(object):
                     random_state=self.random_state,
                 )
                 q.queue(
-                    math.fourierBasis,
+                    math.diffusionCoordinates,
                     Y,
                     decay=self.decay_Y,
                     knn=self.knn_Y,
@@ -314,7 +314,6 @@ class HarmonicAlignment(object):
                     "Please call HarmonicAlignment.fit() first."
                 )
             phi, lmbda = self.phi_X, self.lambda_X
-            lmbda = 1 - lmbda
         elif which == "y":
             if not hasattr(self, "phi_Y"):
                 raise RuntimeError(
@@ -322,7 +321,6 @@ class HarmonicAlignment(object):
                     "Please call HarmonicAlignment.fit() first."
                 )
             phi, lmbda = self.phi_Y, self.lambda_Y
-            lmbda = 1 - lmbda
         elif which == "intermediate":
             if not hasattr(self, "phi_combined"):
                 raise RuntimeError(
@@ -330,7 +328,6 @@ class HarmonicAlignment(object):
                     "Please call HarmonicAlignment.align() first."
                 )
             phi, lmbda = self.phi_combined, self.lambda_combined
-            lmbda = 1 - lmbda
         else:
             raise ValueError(
                 "Expected `which` in ['x', 'y', 'aligned', 'intermediate']. "
