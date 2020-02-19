@@ -190,6 +190,8 @@ class TestDigits(unittest.TestCase):
             decay_X=self.decay_1, decay_Y=self.decay_2,
             decay_XY=self.decay_transform, n_pca_X=self.pca_1, n_pca_Y=self.pca_2,
             n_pca_XY=self.pca_transform)
+        harmonic_op.fit(self.X1, self.X2_rotate)
+        harmonic_op.plot_wavelets()
         G2 = harmonic_op.align(self.X1, self.X2_rotate)
         np.testing.assert_allclose(
             (G.K - G2.K).data, 0, rtol=1e-10, atol=1e-10)
@@ -231,8 +233,9 @@ class TestDigits(unittest.TestCase):
             harmonicalignment.math.orthogonalize(self.transform))
 
     def test_combine(self):
+        phi_combined, lambda_combined = harmonicalignment.harmonicalignment.combine_eigenvectors(self.transform_orth, self.phi_X, self.phi_Y,
+                                 self.lambda_X, self.lambda_Y)
+        E = phi_combined @ np.diag(lambda_combined ** self.diffusion_t)
         np.testing.assert_equal(
             self.E_weighted,
-            harmonicalignment.combine_eigenvectors(
-                self.transform_orth, self.phi_X, self.phi_Y,
-                self.lambda_X, self.lambda_Y, t=self.diffusion_t))
+            E)
