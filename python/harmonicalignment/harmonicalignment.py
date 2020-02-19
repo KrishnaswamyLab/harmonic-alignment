@@ -283,6 +283,7 @@ class HarmonicAlignment(object):
         return math.diffusionMap(phi, lmbda, t=t)
 
     def plot_wavelets(self, figsize=(4, 6)):
+        import matplotlib.pyplot as plt
         if not (hasattr(self, "lambda_X") and hasattr(self, "lambda_Y")):
             raise RuntimeError(
                 "No input data assigned. "
