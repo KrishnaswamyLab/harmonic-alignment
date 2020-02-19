@@ -2,7 +2,6 @@ import joblib
 
 
 class ParallelQueue(object):
-
     def __init__(self, n_jobs=1):
         self.n_jobs = n_jobs
         self.parallel = joblib.Parallel(n_jobs=self.n_jobs)
@@ -26,8 +25,9 @@ class ParallelQueue(object):
         self.kwargs.append(kwargs)
 
     def run(self):
-        result = self.parallel(self.functions[i](*(self.args[i]),
-                                                 **(self.kwargs[i]))
-                               for i in range(len(self.functions)))
+        result = self.parallel(
+            self.functions[i](*(self.args[i]), **(self.kwargs[i]))
+            for i in range(len(self.functions))
+        )
         self.reset()
         return result

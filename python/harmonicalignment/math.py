@@ -7,8 +7,7 @@ import tasklogger
 
 
 def itersine(x):
-    return np.sin(0.5 * np.pi * (np.cos(np.pi * x))**2) * \
-        ((x >= -0.5) & (x <= 0.5))
+    return np.sin(0.5 * np.pi * (np.cos(np.pi * x)) ** 2) * ((x >= -0.5) & (x <= 0.5))
 
 
 def randPCA(X, n_components=None, random_state=None):
@@ -39,7 +38,8 @@ def graphFourierBasis(G, n_eigenvectors=None):
     else:
         # temporary workaround until pygsp updates to pypi
         from scipy import sparse
-        G._e, G._U = sparse.linalg.eigsh(G.L, n_eigenvectors, which='SM')
+
+        G._e, G._U = sparse.linalg.eigsh(G.L, n_eigenvectors, which="SM")
     tasklogger.log_complete("eigendecomposition")
     phi, lmbda = G.U, G.e
     # smallest to largest
@@ -50,14 +50,23 @@ def graphFourierBasis(G, n_eigenvectors=None):
     return phi, lmbda
 
 
-def fourierBasis(X, decay, knn, n_pca, n_eigenvectors=None,
-                         n_jobs=1, verbose=0, random_state=None):
+def fourierBasis(
+    X, decay, knn, n_pca, n_eigenvectors=None, n_jobs=1, verbose=0, random_state=None
+):
     # diffusion maps with normalized Laplacian
-    G = graphtools.Graph(X, knn=knn, decay=decay,
-                         n_pca=n_pca, use_pygsp=True, thresh=1e-4,
-                         anisotropy=1, lap_type='normalized',
-                         n_jobs=n_jobs, verbose=verbose,
-                         random_state=random_state)
+    G = graphtools.Graph(
+        X,
+        knn=knn,
+        decay=decay,
+        n_pca=n_pca,
+        use_pygsp=True,
+        thresh=1e-4,
+        anisotropy=1,
+        lap_type="normalized",
+        n_jobs=n_jobs,
+        verbose=verbose,
+        random_state=random_state,
+    )
     return graphFourierBasis(G, n_eigenvectors=n_eigenvectors)
 
 
@@ -69,27 +78,35 @@ def graphDiffusionCoordinates(G, n_eigenvectors=None):
         phi, lmbda = np.linalg.eigh(A)
     else:
         A = sparse.csr_matrix(G.diff_aff)
-        phi, lmbda = sparse.linalg.eigsh(A, k=n_eigenvectors, which='LM')
+        phi, lmbda = sparse.linalg.eigsh(A, k=n_eigenvectors, which="LM")
     tasklogger.log_complete("eigendecomposition")
     # largest to smallest
     lmbda_idx = np.argsort(lmbda)[::-1]
     phi, lmbda = phi[:, lmbda_idx], lmbda[lmbda_idx]
     # divide by sqrt degrees
-    phi = phi / phi[:,0][:,None]
-    assert np.all(phi[:,0] == 1)
+    phi = phi / phi[:, 0][:, None]
+    assert np.all(phi[:, 0] == 1)
     #  trim trivial information
     phi, lmbda = phi[:, 1:], lmbda[1:]
     return phi, lmbda
 
 
-def diffusionCoordinates(X, decay, knn, n_pca, n_eigenvectors=None,
-                         n_jobs=1, verbose=0, random_state=None):
+def diffusionCoordinates(
+    X, decay, knn, n_pca, n_eigenvectors=None, n_jobs=1, verbose=0, random_state=None
+):
     # diffusion maps with normalized Laplacian
-    G = graphtools.Graph(X, knn=knn, decay=decay,
-                         n_pca=n_pca, use_pygsp=False, thresh=1e-4,
-                         anisotropy=1,
-                         n_jobs=n_jobs, verbose=verbose,
-                         random_state=random_state)
+    G = graphtools.Graph(
+        X,
+        knn=knn,
+        decay=decay,
+        n_pca=n_pca,
+        use_pygsp=False,
+        thresh=1e-4,
+        anisotropy=1,
+        n_jobs=n_jobs,
+        verbose=verbose,
+        random_state=random_state,
+    )
     return graphDiffusionCoordinates(G, n_eigenvectors=n_eigenvectors)
 
 

@@ -33,15 +33,13 @@ def knnclassifier(X, X_labels, Y, Y_labels, knn):
 def diffusionCoordinates(X, decay, knn, n_pca):
     # diffusion maps with normalized Laplacian
     # n_pca = 0 corresponds to NO pca
-    G = graphtools.Graph(X, knn=knn, decay=decay,
-                         n_pca=n_pca, use_pygsp=True, thresh=0)
+    G = graphtools.Graph(X, knn=knn, decay=decay, n_pca=n_pca, use_pygsp=True, thresh=0)
     n_samples = X.shape[0]
     W = G.W.tocoo()
     # W / (DD^T)
     W.data = W.data / (G.dw[W.row] * G.dw[W.col])
     # this is the anisotropic kernel
-    nsqrtD = sparse.dia_matrix((np.array(np.sum(W, 0)) ** (-0.5), [0]),
-                               W.shape)
+    nsqrtD = sparse.dia_matrix((np.array(np.sum(W, 0)) ** (-0.5), [0]), W.shape)
     L = sparse.eye(n_samples) - nsqrtD @ W @ nsqrtD
     U, S, _ = randSVD(L)
     # smallest to largest
@@ -53,13 +51,13 @@ def diffusionCoordinates(X, decay, knn, n_pca):
 
 
 def itersine(x):
-    return np.sin(0.5 * np.pi * (np.cos(np.pi * x))**2) * \
-        ((x >= -0.5) & (x <= 0.5))
+    return np.sin(0.5 * np.pi * (np.cos(np.pi * x)) ** 2) * ((x >= -0.5) & (x <= 0.5))
 
 
 def wavelet(loc, scale, overlap):
     def wavelet_i(x):
         return itersine(x / scale - loc / overlap + 1 / 2) * np.sqrt(2 / overlap)
+
     return wavelet_i
 
 
@@ -76,9 +74,9 @@ def build_wavelets(lmbda, n_filters, overlap):
 
 
 np.random.seed(42)
-digits = datasets.fetch_openml('mnist_784')
-labels = digits['target']
-imgs = digits['data']
+digits = datasets.fetch_openml("mnist_784")
+labels = digits["target"]
+imgs = digits["data"]
 
 n_samples = 1000
 n_features = 784
@@ -86,8 +84,7 @@ n_iters = 1
 n_percentages = 3
 n_wavelets = 2
 
-colreplace_probs = np.linspace(
-    0, 1, n_percentages) if n_percentages > 1 else [1]
+colreplace_probs = np.linspace(0, 1, n_percentages) if n_percentages > 1 else [1]
 # scale of wavelets(eg n_filters) to use
 wavelet_scales = [2, 8, 16, 64]
 # kernel params
@@ -114,11 +111,12 @@ for p in range(n_percentages):
     random_rotation = stats.ortho_group.rvs(n_features)
     # random orthogonal rotation
     colReplace = np.random.choice(
-        n_features, np.floor(pct * n_features).astype(int), replace=False)
+        n_features, np.floor(pct * n_features).astype(int), replace=False
+    )
     random_rotation[:, colReplace] = np.eye(n_features)[:, colReplace]
     for iter_idx in range(n_iters):
         #  sample two sets of digits from MNIST
-        sample_idx = np.random.choice(len(labels), n_samples*2, replace=False)
+        sample_idx = np.random.choice(len(labels), n_samples * 2, replace=False)
         X1_idx = sample_idx[:n_samples]
         X2_idx = sample_idx[n_samples:]
         #  slice the digits
@@ -127,8 +125,7 @@ for p in range(n_percentages):
         #  transform X2
         X2_rotate = X2 @ random_rotation.T
         X_combined = np.vstack([X1, X2_rotate])
-        U_combined, S_combined = diffusionCoordinates(
-            X_combined, decay_1, knn_1, pca_1)
+        U_combined, S_combined = diffusionCoordinates(X_combined, decay_1, knn_1, pca_1)
         # this is for evaluating unaligned data.  You can also ploit this.
         #  slice the labels
         X1_labels = labels[X1_idx]
@@ -136,14 +133,17 @@ for p in range(n_percentages):
         combined_labels = np.concatenate([X1_labels, X2_labels])
         #  run pca and classify
         DM_combined = U_combined @ np.diag(np.exp(-S_combined))
-        beforeprct = knnclassifier(DM_combined[:n_samples, :], X1_labels,
-                                   DM_combined[n_samples:, :], X2_labels, 5)
+        beforeprct = knnclassifier(
+            DM_combined[:n_samples, :],
+            X1_labels,
+            DM_combined[n_samples:, :],
+            X2_labels,
+            5,
+        )
         #  construct graphs
-        U1, S1 = diffusionCoordinates(
-            X1, decay_1, knn_1, pca_1)
+        U1, S1 = diffusionCoordinates(X1, decay_1, knn_1, pca_1)
         # normalized L with diffusion coordinates for sample 1
-        U2, S2 = diffusionCoordinates(
-            X2_rotate, decay_2, knn_2, pca_2)
+        U2, S2 = diffusionCoordinates(X2_rotate, decay_2, knn_2, pca_2)
         # ... sample 2
         #  get fourier coefficients
         X1_fourier = U1.T @ X1
@@ -158,16 +158,18 @@ for p in range(n_percentages):
             # coefficients
             #  evaluate wavelets over data in the spectral domain
             #  stolen from gspbox, i have no idea how the fuck this works
-            wavelet_1_spectral = np.conj(wavelet_1)[:, :, None] * \
-                X1_fourier[:, None, :]
-            wavelet_2_spectral = np.conj(wavelet_2)[:, :, None] * \
-                X2_rotate_fourier[:, None, :]
+            wavelet_1_spectral = np.conj(wavelet_1)[:, :, None] * X1_fourier[:, None, :]
+            wavelet_2_spectral = (
+                np.conj(wavelet_2)[:, :, None] * X2_rotate_fourier[:, None, :]
+            )
             #  correlate the spectral domain wavelet coefficients.
-            blocks = np.zeros((wavelet_1_spectral.shape[0], n_filters,
-                               wavelet_2_spectral.shape[0]))
+            blocks = np.zeros(
+                (wavelet_1_spectral.shape[0], n_filters, wavelet_2_spectral.shape[0])
+            )
             for i in range(n_filters):  # for each filter, build a correlation
-                blocks[:, i, :] = wavelet_1_spectral[:, i, :] @ \
-                    wavelet_2_spectral[:, i, :].T
+                blocks[:, i, :] = (
+                    wavelet_1_spectral[:, i, :] @ wavelet_2_spectral[:, i, :].T
+                )
             #  construct transformation matrix
             transform = np.sum(blocks, axis=1)
             # sum wavelets up
@@ -186,15 +188,17 @@ for p in range(n_percentages):
             # U1 in span(U2)
             U2_transform = U2 @ transform_orth.T
             #  U2 in span(U1)
-            E = np.vstack([np.hstack([U1, U1_transform]),
-                           np.hstack([U2_transform, U2])])
+            E = np.vstack(
+                [np.hstack([U1, U1_transform]), np.hstack([U2_transform, U2])]
+            )
             X = E @ np.diag(np.exp(-diffusion_t * np.concatenate([S1, S2])))
-            U_transform, S_transform = diffusionCoordinates(X, decay_transform,
-                                                            knn_transform,
-                                                            pca_transform)
+            U_transform, S_transform = diffusionCoordinates(
+                X, decay_transform, knn_transform, pca_transform
+            )
             Z = U_transform @ np.diag(np.exp(-S_transform))
-            afterprct = knnclassifier(Z[:n_samples, :], X1_labels,
-                                      Z[n_samples:, :], X2_labels, 5)
+            afterprct = knnclassifier(
+                Z[:n_samples, :], X1_labels, Z[n_samples:, :], X2_labels, 5
+            )
             output[p, iter_idx, scale_idx, 0] = beforeprct
             output[p, iter_idx, scale_idx, 1] = afterprct
 

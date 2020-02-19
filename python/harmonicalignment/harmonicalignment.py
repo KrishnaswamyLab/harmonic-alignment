@@ -11,6 +11,7 @@ from . import utils, math, parallel
 def itersine_wavelet(loc, scale, overlap):
     def itersine_wavelet_i(x):
         return math.itersine(x / scale - loc / overlap + 1 / 2) * np.sqrt(2 / overlap)
+
     return itersine_wavelet_i
 
 
@@ -19,8 +20,7 @@ def build_itersine_wavelet(filter_idx, lmbda, n_filters, overlap):
     # maximum laplacian eigenvalue
     scale = lambda_max * overlap / (n_filters - overlap + 1)
     # response evaluation... this is the money
-    filter_fn = itersine_wavelet(
-        loc=filter_idx + 1, scale=scale, overlap=overlap)
+    filter_fn = itersine_wavelet(loc=filter_idx + 1, scale=scale, overlap=overlap)
     return filter_fn(lmbda)
 
 
@@ -28,8 +28,7 @@ def evaluate_itersine_wavelet(filter_idx, X, phi_X, lambda_X, n_filters, overlap
     # get fourier coefficients
     X_fourier = phi_X.T.dot(X)
     # build wavelets
-    wavelet_X = build_itersine_wavelet(
-        filter_idx, lambda_X, n_filters, overlap=overlap)
+    wavelet_X = build_itersine_wavelet(filter_idx, lambda_X, n_filters, overlap=overlap)
     # wavelet_X is the filter evaluated over the eigenvalues.  So we
     # can pointwise multiply each wavelet_X / 2 by the fourier
     # coefficients
@@ -38,50 +37,64 @@ def evaluate_itersine_wavelet(filter_idx, X, phi_X, lambda_X, n_filters, overlap
     return wavelet_X_eval
 
 
-def correlate_wavelet(filter_idx,
-                      X, phi_X, lambda_X,
-                      Y, phi_Y, lambda_Y,
-                      n_filters, overlap, q):
-    q.queue(evaluate_itersine_wavelet,
-            filter_idx, X, phi_X, lambda_X,
-            n_filters=n_filters,
-            overlap=overlap)
-    q.queue(evaluate_itersine_wavelet,
-            filter_idx, Y, phi_Y, lambda_Y,
-            n_filters=n_filters,
-            overlap=overlap)
+def correlate_wavelet(
+    filter_idx, X, phi_X, lambda_X, Y, phi_Y, lambda_Y, n_filters, overlap, q
+):
+    q.queue(
+        evaluate_itersine_wavelet,
+        filter_idx,
+        X,
+        phi_X,
+        lambda_X,
+        n_filters=n_filters,
+        overlap=overlap,
+    )
+    q.queue(
+        evaluate_itersine_wavelet,
+        filter_idx,
+        Y,
+        phi_Y,
+        lambda_Y,
+        n_filters=n_filters,
+        overlap=overlap,
+    )
     wavelet_X, wavelet_Y = q.run()
     return wavelet_X.dot(wavelet_Y.T)
 
 
-def correlate_wavelets(X, phi_X, lambda_X,
-                       Y, phi_Y, lambda_Y,
-                       n_filters, overlap,
-                       q=None, n_jobs=1):
+def correlate_wavelets(
+    X, phi_X, lambda_X, Y, phi_Y, lambda_Y, n_filters, overlap, q=None, n_jobs=1
+):
     if q is None:
         with parallel.ParallelQueue(n_jobs=n_jobs) as q:
-            return correlate_wavelets(X, phi_X, lambda_X,
-                                      Y, phi_Y, lambda_Y,
-                                      n_filters, overlap, q=q)
+            return correlate_wavelets(
+                X, phi_X, lambda_X, Y, phi_Y, lambda_Y, n_filters, overlap, q=q
+            )
     else:
         transform = np.zeros((phi_X.shape[1], phi_Y.shape[1]))
         for filter_idx in range(n_filters):
             # for each filter, build a correlation
-            transform += correlate_wavelet(filter_idx,
-                                           X, phi_X, lambda_X,
-                                           Y, phi_Y, lambda_Y,
-                                           n_filters, overlap, q)
+            transform += correlate_wavelet(
+                filter_idx,
+                X,
+                phi_X,
+                lambda_X,
+                Y,
+                phi_Y,
+                lambda_Y,
+                n_filters,
+                overlap,
+                q,
+            )
         return transform
 
 
-def build_wavelet_transform(X, phi_X, lambda_X,
-                            Y, phi_Y, lambda_Y,
-                            n_filters, overlap,
-                            q=None, n_jobs=1):
-    transform = correlate_wavelets(X, phi_X, lambda_X,
-                                   Y, phi_Y, lambda_Y,
-                                   n_filters, overlap,
-                                   q=q, n_jobs=n_jobs)
+def build_wavelet_transform(
+    X, phi_X, lambda_X, Y, phi_Y, lambda_Y, n_filters, overlap, q=None, n_jobs=1
+):
+    transform = correlate_wavelets(
+        X, phi_X, lambda_X, Y, phi_Y, lambda_Y, n_filters, overlap, q=q, n_jobs=n_jobs
+    )
     transform_orth = math.orthogonalize(transform)
     return transform_orth
 
@@ -92,8 +105,9 @@ def combine_eigenvectors(transform, phi_X, phi_Y, lambda_X, lambda_Y):
     #  phi_Y in span(phi_X)
     phi_Y_transform = phi_Y.dot(transform.T)
     # joint diffusion space
-    phi_combined = np.vstack([np.hstack([phi_X, phi_X_transform]),
-                              np.hstack([phi_Y_transform, phi_Y])])
+    phi_combined = np.vstack(
+        [np.hstack([phi_X, phi_X_transform]), np.hstack([phi_Y_transform, phi_Y])]
+    )
     # weight by low passed eigenvalues
     lambda_combined = np.exp(-np.concatenate([lambda_X, lambda_Y]))
     return phi_combined, lambda_combined
@@ -134,12 +148,28 @@ class HarmonicAlignment(object):
         If not None, overrides `n_pca`
     """
 
-    def __init__(self, n_filters, overlap=2, t=1,
-                 knn=5, decay=20, n_pca=100, n_eigenvectors=None,
-                 n_jobs=1, verbose=False, random_state=None,
-                 knn_X=None, knn_Y=None, knn_XY=None,
-                 decay_X=None, decay_Y=None, decay_XY=None,
-                 n_pca_X=None, n_pca_Y=None, n_pca_XY=0):
+    def __init__(
+        self,
+        n_filters,
+        overlap=2,
+        t=1,
+        knn=5,
+        decay=20,
+        n_pca=100,
+        n_eigenvectors=None,
+        n_jobs=1,
+        verbose=False,
+        random_state=None,
+        knn_X=None,
+        knn_Y=None,
+        knn_XY=None,
+        decay_X=None,
+        decay_Y=None,
+        decay_XY=None,
+        n_pca_X=None,
+        n_pca_Y=None,
+        n_pca_XY=0,
+    ):
         self.n_filters = n_filters
         self.overlap = overlap
         self.t = t
@@ -153,12 +183,9 @@ class HarmonicAlignment(object):
         self.decay_X = utils.with_default(decay_X, decay)
         self.decay_Y = utils.with_default(decay_Y, decay)
         self.decay_XY = utils.with_default(decay_XY, decay)
-        self.n_pca_X = utils.with_default(
-            n_pca_X, n_pca) if n_pca_X != 0 else None
-        self.n_pca_Y = utils.with_default(
-            n_pca_Y, n_pca) if n_pca_Y != 0 else None
-        self.n_pca_XY = utils.with_default(
-            n_pca_XY, n_pca) if n_pca_XY != 0 else None
+        self.n_pca_X = utils.with_default(n_pca_X, n_pca) if n_pca_X != 0 else None
+        self.n_pca_Y = utils.with_default(n_pca_Y, n_pca) if n_pca_Y != 0 else None
+        self.n_pca_XY = utils.with_default(n_pca_XY, n_pca) if n_pca_XY != 0 else None
         tasklogger.set_level(self.verbose)
         super().__init__()
 
@@ -171,22 +198,28 @@ class HarmonicAlignment(object):
                 with parallel.ParallelQueue(n_jobs=min(2, self.n_jobs)) as q:
                     return self.fit(X, Y, q)
             else:
-                q.queue(math.fourierBasis, X,
-                        decay=self.decay_X,
-                        knn=self.knn_X,
-                        n_pca=self.n_pca_X,
-                        n_eigenvectors=self.n_eigenvectors,
-                        n_jobs=max(self.n_jobs // 2, 1),
-                        verbose=self.verbose,
-                        random_state=self.random_state)
-                q.queue(math.fourierBasis, Y,
-                        decay=self.decay_Y,
-                        knn=self.knn_Y,
-                        n_pca=self.n_pca_Y,
-                        n_eigenvectors=self.n_eigenvectors,
-                        n_jobs=max(self.n_jobs // 2, 1),
-                        verbose=self.verbose,
-                        random_state=self.random_state)
+                q.queue(
+                    math.fourierBasis,
+                    X,
+                    decay=self.decay_X,
+                    knn=self.knn_X,
+                    n_pca=self.n_pca_X,
+                    n_eigenvectors=self.n_eigenvectors,
+                    n_jobs=max(self.n_jobs // 2, 1),
+                    verbose=self.verbose,
+                    random_state=self.random_state,
+                )
+                q.queue(
+                    math.fourierBasis,
+                    Y,
+                    decay=self.decay_Y,
+                    knn=self.knn_Y,
+                    n_pca=self.n_pca_Y,
+                    n_eigenvectors=self.n_eigenvectors,
+                    n_jobs=max(self.n_jobs // 2, 1),
+                    verbose=self.verbose,
+                    random_state=self.random_state,
+                )
             (phi_X, lambda_X), (phi_Y, lambda_Y) = q.run()
             self.phi_X = phi_X
             self.lambda_X = lambda_X
@@ -217,23 +250,38 @@ class HarmonicAlignment(object):
             # evaluate wavelets over data in the spectral domain
             tasklogger.log_start("wavelets")
             transform = build_wavelet_transform(
-                X, self.phi_X, self.lambda_X,
-                Y, self.phi_Y, self.lambda_Y,
-                self.n_filters, self.overlap, q=q)
+                X,
+                self.phi_X,
+                self.lambda_X,
+                Y,
+                self.phi_Y,
+                self.lambda_Y,
+                self.n_filters,
+                self.overlap,
+                q=q,
+            )
             tasklogger.log_complete("wavelets")
         #  compute transformed data
         tasklogger.log_start("transformed data")
-        self.phi_combined, self.lambda_combined = combine_eigenvectors(transform, self.phi_X, self.phi_Y,
-                                 self.lambda_X, self.lambda_Y)
+        self.phi_combined, self.lambda_combined = combine_eigenvectors(
+            transform, self.phi_X, self.phi_Y, self.lambda_X, self.lambda_Y
+        )
         E = self.phi_combined @ np.diag(self.lambda_combined ** self.t)
         # build the joint diffusion map
         tasklogger.log_start("graph Laplacian")
         self.graph = graphtools.Graph(
-            E, knn=self.knn_XY, decay=self.decay_XY,
-            n_pca=self.n_pca_XY, use_pygsp=True, thresh=1e-4,
-            anisotropy=1, lap_type='normalized',
-            n_jobs=self.n_jobs, verbose=self.verbose,
-            random_state=self.random_state)
+            E,
+            knn=self.knn_XY,
+            decay=self.decay_XY,
+            n_pca=self.n_pca_XY,
+            use_pygsp=True,
+            thresh=1e-4,
+            anisotropy=1,
+            lap_type="normalized",
+            n_jobs=self.n_jobs,
+            verbose=self.verbose,
+            random_state=self.random_state,
+        )
         tasklogger.log_complete("graph Laplacian")
         tasklogger.log_complete("transformed data")
         tasklogger.log_complete("Harmonic Alignment")
@@ -256,54 +304,62 @@ class HarmonicAlignment(object):
             if not hasattr(self, "graph"):
                 raise RuntimeError(
                     "No alignment performed. "
-                    "Please call HarmonicAlignment.align() first.")
-            phi, lmbda = math.graphDiffusionCoordinates(
-                self.graph)
+                    "Please call HarmonicAlignment.align() first."
+                )
+            phi, lmbda = math.graphDiffusionCoordinates(self.graph)
         elif which == "x":
             if not hasattr(self, "phi_X"):
                 raise RuntimeError(
                     "No input data assigned. "
-                    "Please call HarmonicAlignment.fit() first.")
+                    "Please call HarmonicAlignment.fit() first."
+                )
             phi, lmbda = self.phi_X, self.lambda_X
             lmbda = 1 - lmbda
         elif which == "y":
             if not hasattr(self, "phi_Y"):
                 raise RuntimeError(
                     "No input data assigned. "
-                    "Please call HarmonicAlignment.fit() first.")
+                    "Please call HarmonicAlignment.fit() first."
+                )
             phi, lmbda = self.phi_Y, self.lambda_Y
             lmbda = 1 - lmbda
         elif which == "intermediate":
             if not hasattr(self, "phi_combined"):
                 raise RuntimeError(
                     "No alignment performed. "
-                    "Please call HarmonicAlignment.align() first.")
+                    "Please call HarmonicAlignment.align() first."
+                )
             phi, lmbda = self.phi_combined, self.lambda_combined
             lmbda = 1 - lmbda
         else:
-            raise ValueError("Expected `which` in ['x', 'y', 'aligned', 'intermediate']. "
-                             "Got {}".format(which))
+            raise ValueError(
+                "Expected `which` in ['x', 'y', 'aligned', 'intermediate']. "
+                "Got {}".format(which)
+            )
         return math.diffusionMap(phi, lmbda, t=t)
 
     def plot_wavelets(self, figsize=(4, 6)):
         import matplotlib.pyplot as plt
+
         if not (hasattr(self, "lambda_X") and hasattr(self, "lambda_Y")):
             raise RuntimeError(
-                "No input data assigned. "
-                "Please call HarmonicAlignment.fit() first.")
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, sharex='all')
-        for lmbda, ax, name in zip((self.lambda_X, self.lambda_Y), (ax1, ax2), ('X', 'Y')):
+                "No input data assigned. " "Please call HarmonicAlignment.fit() first."
+            )
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=figsize, sharex="all")
+        for lmbda, ax, name in zip(
+            (self.lambda_X, self.lambda_Y), (ax1, ax2), ("X", "Y")
+        ):
 
             ax_right = ax.twinx()
-            ax_right.set_ylabel('# of eigenvalues', fontsize='x-large')
+            ax_right.set_ylabel("# of eigenvalues", fontsize="x-large")
             ax_right.hist(lmbda, 30, zorder=-2, alpha=0.4)
 
             x = np.linspace(np.min(lmbda), np.max(lmbda), 200)
             for i in range(self.n_filters):
                 y = build_itersine_wavelet(i, x, self.n_filters, self.overlap)
                 ax.plot(x, y, zorder=1)
-            ax.set_ylabel(r'$h(\lambda)$', fontsize='x-large')
+            ax.set_ylabel(r"$h(\lambda)$", fontsize="x-large")
             ax.set_ylim(0, 1.05)
-            ax.set_title(name, fontsize='xx-large')
-        ax2.set_xlabel(r'$\lambda$', fontsize='x-large')
+            ax.set_title(name, fontsize="xx-large")
+        ax2.set_xlabel(r"$\lambda$", fontsize="x-large")
         return (fig, (ax1, ax2))
