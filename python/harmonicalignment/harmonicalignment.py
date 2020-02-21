@@ -250,13 +250,13 @@ class HarmonicAlignment(object):
         np.random.seed(self.random_state)
         # normalized L with diffusion coordinates
         with parallel.ParallelQueue(n_jobs=min(2, self.n_jobs)) as q:
-            if None in (phi_X, phi_Y, lambda_X, lambda_Y):
-                if (
-                    phi_X is not None
-                    or phi_Y is not None
-                    or lambda_X is not None
-                    or lambda_Y is not None
-                ):
+            if (
+                phi_X is not None
+                or phi_Y is not None
+                or lambda_X is not None
+                or lambda_Y is not None
+            ):
+                if None in (phi_X, phi_Y, lambda_X, lambda_Y):
                     raise RuntimeError(
                         "If a precomputed eigensystem is provided, all of"
                         " `phi_X, phi_Y, lambda_X, lambda_Y` must be provided."
