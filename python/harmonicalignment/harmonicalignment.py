@@ -228,7 +228,7 @@ class HarmonicAlignment(object):
             tasklogger.log_complete("diffusion coordinates")
         return self
 
-    def align(self, X, Y):
+    def align(self, X, Y, phi_X=None, phi_Y=None, lambda_X=None, lambda_Y=None):
         """Harmonic alignment
 
         Parameters
@@ -237,6 +237,10 @@ class HarmonicAlignment(object):
             Input dataset
         Y : array-like, shape=[m_samples, n_features]
             Input dataset
+        phi_{X,Y} : array-like, shape=[{n,m}_samples, {n,m}_samples], optional (default: None)
+            Precomputed Laplacian eigenvectors
+        lambda_{X,Y} : list-like, shape=[{n,m}_samples], optional (default: None)
+            Precomputed Laplacian eigenvalues
 
         Returns
         -------
@@ -246,6 +250,23 @@ class HarmonicAlignment(object):
         np.random.seed(self.random_state)
         # normalized L with diffusion coordinates
         with parallel.ParallelQueue(n_jobs=min(2, self.n_jobs)) as q:
+            if None in (phi_X, phi_Y, lambda_X, lambda_Y):
+                if (
+                    phi_X is not None
+                    or phi_Y is not None
+                    or lambda_X is not None
+                    or lambda_Y is not None
+                ):
+                    raise RuntimeError(
+                        "If a precomputed eigensystem is provided, all of"
+                        " `phi_X, phi_Y, lambda_X, lambda_Y` must be provided."
+                        " Got phi_X={}, phi_Y={}, lambda_X={}, lambda_Y={}".format(
+                            phi_X, phi_Y, lambda_X, lambda_Y
+                        )
+                    )
+                else:
+                    self.phi_X, self.phi_Y = phi_X, phi_Y
+                    self.lambda_X, self.lambda_Y = lambda_X, lambda_Y
             self.fit(X, Y, q)
             # evaluate wavelets over data in the spectral domain
             tasklogger.log_start("wavelets")
