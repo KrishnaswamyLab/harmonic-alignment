@@ -28,4 +28,6 @@ Usage
 You can use harmonic-alignment as follows::
 
     import harmonicalignment
-    XY_aligned = harmonicalignment.align(X, Y, n_filters=4)
+    ha_op = harmonicalignment.HarmonicAlignment(n_filters=4)
+    ha_op.align(X, Y)
+    XY_aligned = ha_op.diffusion_map()
