@@ -308,13 +308,17 @@ class HarmonicAlignment(object):
         tasklogger.log_complete("Harmonic Alignment")
         return self.graph
 
-    def diffusion_map(self, which="aligned", t=1):
+    def diffusion_map(self, which="aligned", t=1, n_eigenvectors=None):
         """Return the diffusion map
 
         Parameters
         ----------
         which : {'x', 'y', 'aligned', 'intermediate'}, optional (default: 'aligned')
         t : int, optional (default: 1)
+        n_eigenvectors : int, optional (default: None)
+            Number of eigenvectors of the normalized Laplacian
+            to which to compute the aligned diffusion map. 
+            Defaults to all eigenvectors. Ignored otherwise.
 
         Returns
         -------
@@ -327,7 +331,7 @@ class HarmonicAlignment(object):
                     "No alignment performed. "
                     "Please call HarmonicAlignment.align() first."
                 )
-            phi, lmbda = math.graphDiffusionCoordinates(self.graph)
+            phi, lmbda = math.graphDiffusionCoordinates(self.graph, n_eigenvectors=n_eigenvectors)
         elif which == "x":
             if not hasattr(self, "phi_X"):
                 raise RuntimeError(
