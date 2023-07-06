@@ -5,7 +5,7 @@ from setuptools import setup
 install_requires = [
     "numpy>=1.14.0",
     "scipy>=1.1.0",
-    "pygsp>=>=0.5.1",
+    "pygsp>=0.5.1",
     "scikit-learn>=0.20.0",
     "future",
     "tasklogger>=0.4.0",
